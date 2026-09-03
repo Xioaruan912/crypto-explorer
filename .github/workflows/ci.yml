@@ -43,7 +43,7 @@ jobs:
         run: |
           pip install pip-audit bandit
           pip-audit -r backend/requirements.txt
-          bandit -r backend -x backend/security_smoke.py,backend/genealogy_smoke.py
+          bandit -r backend -x backend/security_smoke.py,backend/genealogy_smoke.py,backend/query_normalizer_smoke.py
       - run: python -m compileall -q backend
       - name: Import FastAPI application
         env:
