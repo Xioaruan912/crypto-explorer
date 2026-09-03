@@ -5,7 +5,9 @@ import {
   ArrowRight,
   Bookmark,
   BookOpenCheck,
+  CalendarDays,
   CheckCircle2,
+  Circle,
   Clock3,
   FileSearch,
   HelpCircle,
@@ -25,10 +27,12 @@ import {
   DashboardData,
   FavoriteItem,
   NoteItem,
+  ReadingTask,
   SearchHistoryItem,
   UserProfile,
   WorkspaceSection,
 } from '@/types/research';
+import { getWeekDays, startOfWeek } from '@/utils/week';
 
 interface WorkspaceViewProps {
   section: WorkspaceSection;
@@ -36,19 +40,20 @@ interface WorkspaceViewProps {
   onRunSearch: (query: string) => void;
   onSelectFavorite: (paperId: string) => void;
   onRemoveFavorite: (paperId: string) => void;
+  onOpenReadingList: () => void;
   onBack: () => void;
 }
 
 const sectionMeta: Record<WorkspaceSection, { title: string; subtitle: string; icon: React.ReactNode }> = {
   help: { title: '帮助中心', subtitle: '快速了解密码学研究图谱的主要工作流', icon: <HelpCircle size={20} /> },
-  dashboard: { title: '研究仪表盘', subtitle: '汇总你的搜索、阅读和收藏活动', icon: <LayoutDashboard size={20} /> },
+  dashboard: { title: '研究仪表盘', subtitle: '优先查看本周阅读 TODO，再汇总搜索、阅读、收藏与笔记活动', icon: <LayoutDashboard size={20} /> },
   history: { title: '历史记录', subtitle: '查看过去的研究搜索并快速重新探索', icon: <History size={20} /> },
   favorites: { title: '我的收藏', subtitle: '集中管理你标记的重要论文', icon: <Bookmark size={20} /> },
   profile: { title: '个人中心', subtitle: '维护研究者资料与研究方向', icon: <User size={20} /> },
   notes: { title: 'Markdown 笔记', subtitle: '集中管理与论文关联的本地 Markdown 阅读笔记', icon: <PenTool size={20} /> },
 };
 
-export default function WorkspaceView({ section, favorites, onRunSearch, onSelectFavorite, onRemoveFavorite, onBack }: WorkspaceViewProps) {
+export default function WorkspaceView({ section, favorites, onRunSearch, onSelectFavorite, onRemoveFavorite, onOpenReadingList, onBack }: WorkspaceViewProps) {
   const meta = sectionMeta[section];
   return (
     <div className="w-full">
@@ -61,7 +66,7 @@ export default function WorkspaceView({ section, favorites, onRunSearch, onSelec
         <button onClick={onBack} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">返回研究图谱</button>
       </div>
       {section === 'help' && <HelpView />}
-      {section === 'dashboard' && <DashboardView onRunSearch={onRunSearch} />}
+      {section === 'dashboard' && <DashboardView onRunSearch={onRunSearch} onOpenReadingList={onOpenReadingList} />}
       {section === 'history' && <HistoryView onRunSearch={onRunSearch} />}
       {section === 'favorites' && <FavoritesView favorites={favorites} onSelect={onSelectFavorite} onRemove={onRemoveFavorite} />}
       {section === 'profile' && <ProfileView />}
@@ -76,7 +81,7 @@ function HelpView() {
     ['开始研究', '在顶部搜索框输入主题、论文、作者或会议名称。系统只在你主动提交后搜索。', Search],
     ['文献图谱', '从种子论文展开引文关系，点击节点可查看摘要、来源、DOI 与引用信息。', FileSearch],
     ['时间线与引文网络', '用时间线观察研究演化；用引文网络识别关键节点与直接关联论文。', Clock3],
-    ['阅读清单', '把论文加入待读、在读、已读流程，设置优先级并记录阅读备注。', BookOpenCheck],
+    ['阅读清单与每周 TODO', '把论文加入阅读库后，可按周一至周日安排“阅读、笔记、复习、复现”等任务，并独立跟踪完成状态。', BookOpenCheck],
     ['收藏与历史', '收藏重要论文；成功搜索会自动写入历史记录，可随时重新执行。', Bookmark],
     ['数据持久化', '阅读清单、收藏、搜索历史与个人资料都会保存在 SQLite 中，容器重启后仍保留。', CheckCircle2],
   ] as const;
@@ -89,10 +94,28 @@ function HelpView() {
   </div>;
 }
 
-function DashboardView({ onRunSearch }: { onRunSearch: (query: string) => void }) {
+function DashboardView({ onRunSearch, onOpenReadingList }: { onRunSearch: (query: string) => void; onOpenReadingList: () => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [tasks, setTasks] = useState<ReadingTask[]>([]);
   const [error, setError] = useState('');
-  useEffect(() => { researchService.getDashboard().then(setData).catch((e) => setError(e.message)); }, []);
+  const [weekStart] = useState(() => startOfWeek(new Date()));
+  const weekDays = getWeekDays(weekStart);
+  const dashboardWeekStart = weekDays[0].iso;
+  const dashboardWeekEnd = weekDays[6].iso;
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      researchService.getDashboard(),
+      researchService.listReadingTasks(dashboardWeekStart, dashboardWeekEnd),
+    ])
+      .then(([dashboard, weeklyTasks]) => {
+        if (!active) return;
+        setData(dashboard);
+        setTasks(weeklyTasks);
+      })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, [dashboardWeekEnd, dashboardWeekStart]);
   if (error) return <ErrorBox text={error} />;
   if (!data) return <Loading />;
   const cards = [
@@ -102,8 +125,49 @@ function DashboardView({ onRunSearch }: { onRunSearch: (query: string) => void }
     ['已读论文', data.reading_statuses.done || 0, CheckCircle2],
     ['Markdown 笔记', data.note_count || 0, PenTool],
   ] as const;
+
+  const toggleTask = async (task: ReadingTask) => {
+    try {
+      const updated = await researchService.updateReadingTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' });
+      setTasks((current) => current.map((item) => item.id === task.id ? updated : item));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '更新本周任务失败');
+    }
+  };
+
   return <div className="space-y-6">
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">{cards.map(([label, value, Icon]) => <div key={label} className="rounded-xl border border-gray-200 bg-white p-5"><div className="flex items-center justify-between"><div className="text-sm text-gray-500">{label}</div><Icon size={18} className="text-[#6D4AFF]" /></div><div className="mt-3 text-3xl font-bold text-gray-900">{value}</div></div>)}</div>
+    <div className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 font-semibold text-gray-900"><CalendarDays size={18} className="text-[#6D4AFF]" />本周阅读 TODO</div>
+          <div className="mt-1 text-xs text-gray-400">直接从仪表盘确认这一周每天要读什么、做什么。</div>
+        </div>
+        <button onClick={onOpenReadingList} className="rounded-lg border border-[#D8CEFF] bg-[#F8F6FF] px-3 py-2 text-sm font-medium text-[#6D4AFF] hover:bg-[#F2EFFF]">打开完整计划</button>
+      </div>
+      {tasks.length ? (
+        <div className="overflow-x-auto pb-1">
+          <div className="grid min-w-[900px] grid-cols-7 gap-2">
+            {weekDays.map((day) => {
+              const dayTasks = tasks.filter((task) => task.scheduled_date === day.iso);
+              return <div key={day.iso} className={`min-h-36 rounded-lg border p-2.5 ${day.isToday ? 'border-[#9D87FF] bg-[#FAF9FF]' : 'border-gray-100 bg-gray-50/60'}`}>
+                <div className="mb-2 flex items-center justify-between"><span className={`text-xs font-semibold ${day.isToday ? 'text-[#6D4AFF]' : 'text-gray-700'}`}>{day.weekday}</span><span className="text-[10px] text-gray-400">{day.shortDate}</span></div>
+                <div className="space-y-1.5">
+                  {dayTasks.slice(0, 3).map((task) => <button key={task.id} onClick={() => toggleTask(task)} className={`flex w-full items-start gap-1.5 rounded-md border bg-white p-2 text-left ${task.status === 'done' ? 'border-emerald-100 opacity-60' : 'border-gray-100'}`} title={task.status === 'done' ? '点击恢复为待完成' : '点击标记完成'}>
+                    {task.status === 'done' ? <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-500" /> : <Circle size={13} className="mt-0.5 shrink-0 text-gray-300" />}
+                    <span className="min-w-0"><span className="block truncate text-[11px] font-medium text-gray-800">{task.task_text}</span><span className="mt-0.5 block truncate text-[10px] text-gray-400">{task.paper.titleEn}</span></span>
+                  </button>)}
+                  {dayTasks.length > 3 && <div className="text-center text-[10px] text-gray-400">还有 {dayTasks.length - 3} 项</div>}
+                  {!dayTasks.length && <div className="pt-6 text-center text-[10px] text-gray-300">空闲</div>}
+                </div>
+              </div>;
+            })}
+          </div>
+        </div>
+      ) : (
+        <button onClick={onOpenReadingList} className="flex w-full flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 py-10 text-gray-400 hover:border-[#CFC3FF] hover:bg-[#FCFBFF] hover:text-[#6D4AFF]"><CalendarDays size={28} /><span className="mt-2 text-sm font-medium">本周还没有安排任务</span><span className="mt-1 text-xs">点击进入阅读清单，把论文排到周一至周日。</span></button>
+      )}
+    </div>
     <div className="grid grid-cols-[1fr_320px] gap-5">
       <div className="rounded-xl border border-gray-200 bg-white p-5"><h3 className="font-semibold text-gray-900">最近搜索</h3><div className="mt-4 divide-y divide-gray-100">{data.recent_searches.length ? data.recent_searches.map(item => <button key={item.id} onClick={() => onRunSearch(item.query)} className="flex w-full items-center justify-between py-3 text-left hover:text-[#6D4AFF]"><div><div className="text-sm font-medium">{item.query}</div><div className="mt-1 text-xs text-gray-400">{item.result_count} 篇论文 · {formatTime(item.created_at)}</div></div><ArrowRight size={16} /></button>) : <Empty text="还没有搜索历史" />}</div></div>
       <div className="rounded-xl border border-gray-200 bg-white p-5"><h3 className="font-semibold text-gray-900">阅读进度</h3><div className="mt-5 space-y-4"><Progress label="待读" value={data.reading_statuses.to_read || 0} total={data.reading_count} /><Progress label="在读" value={data.reading_statuses.reading || 0} total={data.reading_count} /><Progress label="已读" value={data.reading_statuses.done || 0} total={data.reading_count} /></div></div>

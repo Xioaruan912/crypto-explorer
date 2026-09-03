@@ -5,6 +5,9 @@ import {
   NoteItem,
   ReadingListItem,
   ReadingStatus,
+  ReadingTask,
+  ReadingTaskStatus,
+  ReadingTaskType,
   SearchHistoryItem,
   UserProfile,
 } from '../types/research';
@@ -51,6 +54,58 @@ export const researchService = {
 
   async removeReading(paperId: string): Promise<void> {
     const response = await fetch(`/api/reading-list/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error(await parseError(response));
+  },
+
+  async listReadingTasks(fromDate: string, toDate: string): Promise<ReadingTask[]> {
+    const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
+    const response = await fetch(`/api/reading-tasks?${params.toString()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(await parseError(response));
+    const body = await response.json() as { items: ReadingTask[] };
+    return body.items;
+  },
+
+  async createReadingTask(input: {
+    paperId: string;
+    scheduledDate: string;
+    taskType: ReadingTaskType;
+    taskText: string;
+  }): Promise<ReadingTask> {
+    const response = await fetch('/api/reading-tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        paper_id: input.paperId,
+        scheduled_date: input.scheduledDate,
+        task_type: input.taskType,
+        task_text: input.taskText,
+        status: 'todo',
+      }),
+    });
+    if (!response.ok) throw new Error(await parseError(response));
+    return response.json();
+  },
+
+  async updateReadingTask(
+    taskId: number,
+    patch: Partial<{
+      scheduled_date: string;
+      task_type: ReadingTaskType;
+      task_text: string;
+      status: ReadingTaskStatus;
+    }>,
+  ): Promise<ReadingTask> {
+    const response = await fetch(`/api/reading-tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) throw new Error(await parseError(response));
+    return response.json();
+  },
+
+  async removeReadingTask(taskId: number): Promise<void> {
+    const response = await fetch(`/api/reading-tasks/${taskId}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 

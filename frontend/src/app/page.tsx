@@ -21,7 +21,7 @@ import { Paper } from '@/types/paper';
 export default function Home() {
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ResearchView>('graph');
-  const [workspace, setWorkspace] = useState<WorkspaceSection | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceSection | null>('dashboard');
   const [isSearching, setIsSearching] = useState(false);
   const [currentTopic, setCurrentTopic] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
@@ -210,6 +210,7 @@ export default function Home() {
                 onRunSearch={handleSearch}
                 onSelectFavorite={setSelectedPaperId}
                 onRemoveFavorite={removeFavorite}
+                onOpenReadingList={() => switchResearchView('reading')}
                 onBack={() => setWorkspace(null)}
               />
             ) : discoveryMode ? (

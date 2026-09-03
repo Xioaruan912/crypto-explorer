@@ -87,6 +87,27 @@ class ResearchStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS reading_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    paper_id TEXT NOT NULL,
+                    task_type TEXT NOT NULL DEFAULT 'read',
+                    task_text TEXT NOT NULL DEFAULT '阅读论文',
+                    scheduled_date TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'todo',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (paper_id) REFERENCES reading_list(paper_id) ON DELETE CASCADE
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reading_tasks_scheduled_date ON reading_tasks(scheduled_date)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reading_tasks_paper_id ON reading_tasks(paper_id)"
+            )
             conn.execute("INSERT OR IGNORE INTO user_profile (id) VALUES (1)")
 
     def list_reading(self) -> list[dict[str, Any]]:
@@ -145,6 +166,81 @@ class ResearchStore:
     def delete_reading(self, paper_id: str) -> bool:
         with self._lock, self._connect() as conn:
             cur = conn.execute("DELETE FROM reading_list WHERE paper_id = ?", (paper_id,))
+            return cur.rowcount > 0
+
+    def list_reading_tasks(self, from_date: str, to_date: str) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT task.*, reading.paper_json
+                FROM reading_tasks AS task
+                JOIN reading_list AS reading ON reading.paper_id = task.paper_id
+                WHERE task.scheduled_date >= ? AND task.scheduled_date <= ?
+                ORDER BY task.scheduled_date ASC,
+                         CASE task.status WHEN 'doing' THEN 0 WHEN 'todo' THEN 1 ELSE 2 END,
+                         task.id ASC
+                """,
+                (from_date, to_date),
+            ).fetchall()
+        return [self._row_to_reading_task(row) for row in rows]
+
+    def create_reading_task(
+        self,
+        paper_id: str,
+        scheduled_date: str,
+        task_type: str,
+        task_text: str,
+        status: str = "todo",
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connect() as conn:
+            paper_row = conn.execute(
+                "SELECT paper_json FROM reading_list WHERE paper_id = ?", (paper_id,)
+            ).fetchone()
+            if paper_row is None:
+                return None
+            cur = conn.execute(
+                """
+                INSERT INTO reading_tasks (paper_id, task_type, task_text, scheduled_date, status)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (paper_id, task_type, task_text, scheduled_date, status),
+            )
+            row = conn.execute(
+                """
+                SELECT task.*, reading.paper_json
+                FROM reading_tasks AS task
+                JOIN reading_list AS reading ON reading.paper_id = task.paper_id
+                WHERE task.id = ?
+                """,
+                (cur.lastrowid,),
+            ).fetchone()
+        return self._row_to_reading_task(row)
+
+    def update_reading_task(self, task_id: int, fields: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {"scheduled_date", "task_type", "task_text", "status"}
+        updates = {key: value for key, value in fields.items() if key in allowed and value is not None}
+        with self._lock, self._connect() as conn:
+            if updates:
+                assignments = ", ".join(f"{key} = ?" for key in updates)
+                values = list(updates.values()) + [task_id]
+                conn.execute(
+                    f"UPDATE reading_tasks SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    values,
+                )
+            row = conn.execute(
+                """
+                SELECT task.*, reading.paper_json
+                FROM reading_tasks AS task
+                JOIN reading_list AS reading ON reading.paper_id = task.paper_id
+                WHERE task.id = ?
+                """,
+                (task_id,),
+            ).fetchone()
+        return self._row_to_reading_task(row) if row else None
+
+    def delete_reading_task(self, task_id: int) -> bool:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM reading_tasks WHERE id = ?", (task_id,))
             return cur.rowcount > 0
 
     def list_favorites(self) -> list[dict[str, Any]]:
@@ -302,6 +398,19 @@ class ResearchStore:
             "paper": json.loads(row["paper_json"]),
             "title": row["title"],
             "content": row["content"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _row_to_reading_task(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "paper": json.loads(row["paper_json"]),
+            "task_type": row["task_type"],
+            "task_text": row["task_text"],
+            "scheduled_date": row["scheduled_date"],
+            "status": row["status"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }

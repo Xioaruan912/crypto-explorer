@@ -2,6 +2,8 @@ import { Paper } from './paper';
 
 export type ResearchView = 'graph' | 'timeline' | 'citations' | 'reading' | 'papers' | 'authors' | 'venues';
 export type ReadingStatus = 'to_read' | 'reading' | 'done';
+export type ReadingTaskStatus = 'todo' | 'doing' | 'done';
+export type ReadingTaskType = 'read' | 'notes' | 'review' | 'reproduce' | 'custom';
 export type WorkspaceSection = 'help' | 'dashboard' | 'history' | 'favorites' | 'profile' | 'notes';
 
 export interface ReadingListItem {
@@ -9,6 +11,17 @@ export interface ReadingListItem {
   status: ReadingStatus;
   priority: 1 | 2 | 3;
   note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReadingTask {
+  id: number;
+  paper: Paper;
+  task_type: ReadingTaskType;
+  task_text: string;
+  scheduled_date: string;
+  status: ReadingTaskStatus;
   created_at: string;
   updated_at: string;
 }

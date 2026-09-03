@@ -3,6 +3,7 @@ import os
 import time
 import uuid
 import json
+from datetime import date
 from pathlib import Path
 
 import requests
@@ -78,6 +79,42 @@ class NoteUpsert(BaseModel):
     paper: dict
     title: str = Field(default="", max_length=300)
     content: str = Field(default="", max_length=500000)
+
+
+class ReadingTaskCreate(BaseModel):
+    paper_id: str = Field(min_length=1, max_length=300)
+    scheduled_date: str = Field(min_length=10, max_length=10)
+    task_type: str = Field(default="read", max_length=30)
+    task_text: str = Field(default="阅读论文", min_length=1, max_length=500)
+    status: str = Field(default="todo", max_length=20)
+
+
+class ReadingTaskUpdate(BaseModel):
+    scheduled_date: str | None = Field(default=None, min_length=10, max_length=10)
+    task_type: str | None = Field(default=None, max_length=30)
+    task_text: str | None = Field(default=None, min_length=1, max_length=500)
+    status: str | None = Field(default=None, max_length=20)
+
+
+READING_TASK_TYPES = {"read", "notes", "review", "reproduce", "custom"}
+READING_TASK_STATUSES = {"todo", "doing", "done"}
+
+
+def _validate_iso_date(value: str) -> str:
+    try:
+        date.fromisoformat(value)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="date must use YYYY-MM-DD") from error
+    return value
+
+
+def _validate_reading_task_fields(values: dict) -> None:
+    if values.get("scheduled_date") is not None:
+        _validate_iso_date(values["scheduled_date"])
+    if values.get("task_type") is not None and values["task_type"] not in READING_TASK_TYPES:
+        raise HTTPException(status_code=422, detail="invalid reading task type")
+    if values.get("status") is not None and values["status"] not in READING_TASK_STATUSES:
+        raise HTTPException(status_code=422, detail="invalid reading task status")
 
 
 def _load_cached_graph(query: str, max_nodes: int) -> ResearchGraph | None:
@@ -286,6 +323,54 @@ def delete_reading_list(paper_id: str):
     if not store.delete_reading(paper_id):
         raise HTTPException(status_code=404, detail="reading list item not found")
     logger.info("reading list delete paper_id=%s", paper_id)
+    return {"status": "deleted"}
+
+
+@app.get("/api/reading-tasks")
+def get_reading_tasks(
+    from_date: str = Query(min_length=10, max_length=10),
+    to_date: str = Query(min_length=10, max_length=10),
+):
+    start = _validate_iso_date(from_date)
+    end = _validate_iso_date(to_date)
+    if start > end:
+        raise HTTPException(status_code=422, detail="from_date must not be after to_date")
+    return {"items": store.list_reading_tasks(start, end)}
+
+
+@app.post("/api/reading-tasks")
+def create_reading_task(payload: ReadingTaskCreate):
+    values = payload.model_dump()
+    _validate_reading_task_fields(values)
+    item = store.create_reading_task(**values)
+    if item is None:
+        raise HTTPException(status_code=404, detail="reading list item not found")
+    logger.info(
+        "reading task create task_id=%s paper_id=%s date=%s type=%s",
+        item["id"],
+        payload.paper_id,
+        payload.scheduled_date,
+        payload.task_type,
+    )
+    return item
+
+
+@app.patch("/api/reading-tasks/{task_id}")
+def update_reading_task(task_id: int, payload: ReadingTaskUpdate):
+    values = payload.model_dump(exclude_unset=True)
+    _validate_reading_task_fields(values)
+    item = store.update_reading_task(task_id, values)
+    if item is None:
+        raise HTTPException(status_code=404, detail="reading task not found")
+    logger.info("reading task update task_id=%s fields=%s", task_id, sorted(values.keys()))
+    return item
+
+
+@app.delete("/api/reading-tasks/{task_id}")
+def delete_reading_task(task_id: int):
+    if not store.delete_reading_task(task_id):
+        raise HTTPException(status_code=404, detail="reading task not found")
+    logger.info("reading task delete task_id=%s", task_id)
     return {"status": "deleted"}
 
 
