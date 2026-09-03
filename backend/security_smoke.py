@@ -14,6 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -60,6 +61,8 @@ def main() -> int:
                 "RESEARCH_DB_PATH": str(db_path),
                 "COOKIE_SECURE": "false",
                 "ENABLE_API_DOCS": "false",
+                "SESSION_TTL_HOURS": "720",
+                "SESSION_RENEW_BEFORE_HOURS": "168",
             }
         )
         process = subprocess.Popen(
@@ -93,7 +96,11 @@ def main() -> int:
             )
             assert status == 200 and login["must_change_password"] is True
             csrf = login["csrf_token"]
-            first_cookie = next(cookie.value for cookie in jar if cookie.name == "crypto_session")
+            login_cookie = next(cookie for cookie in jar if cookie.name == "crypto_session")
+            first_cookie = login_cookie.value
+            assert login_cookie.discard is False
+            assert login_cookie.expires is not None
+            assert login_cookie.expires - time.time() > 29 * 24 * 3600
 
             status, _ = request(opener, base, "/api/dashboard")
             assert status == 428
@@ -116,8 +123,30 @@ def main() -> int:
             )
             assert status == 200 and changed["must_change_password"] is False
             csrf2 = changed["csrf_token"]
-            second_cookie = next(cookie.value for cookie in jar if cookie.name == "crypto_session")
+            second_cookie_obj = next(cookie for cookie in jar if cookie.name == "crypto_session")
+            second_cookie = second_cookie_obj.value
             assert first_cookie != second_cookie
+            assert second_cookie_obj.discard is False
+            assert second_cookie_obj.expires is not None
+
+            # A valid session close to expiry should be extended without forcing a new login.
+            near_expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+            with sqlite3.connect(db_path) as conn:
+                conn.execute(
+                    "UPDATE auth_sessions SET expires_at = ? WHERE token_hash = ?",
+                    (near_expiry, hashlib.sha256(second_cookie.encode()).hexdigest()),
+                )
+            status, renewed = request(opener, base, "/api/auth/session")
+            assert status == 200 and renewed["authenticated"] is True
+            with sqlite3.connect(db_path) as conn:
+                renewed_expiry = conn.execute(
+                    "SELECT expires_at FROM auth_sessions WHERE token_hash = ?",
+                    (hashlib.sha256(second_cookie.encode()).hexdigest(),),
+                ).fetchone()[0]
+            assert datetime.fromisoformat(renewed_expiry) > datetime.now(timezone.utc) + timedelta(days=29)
+            renewed_cookie = next(cookie for cookie in jar if cookie.name == "crypto_session")
+            assert renewed_cookie.expires is not None
+            assert renewed_cookie.expires - time.time() > 29 * 24 * 3600
 
             status, _ = request(opener, base, "/api/dashboard")
             assert status == 200

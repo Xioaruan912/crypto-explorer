@@ -6,7 +6,7 @@ import json
 import hmac
 import sqlite3
 import secrets
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,11 @@ app = FastAPI(
 )
 
 SESSION_COOKIE = "crypto_session"
-SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "24"))
+SESSION_TTL_HOURS = max(24, min(int(os.getenv("SESSION_TTL_HOURS", "720")), 24 * 365))
+SESSION_RENEW_BEFORE_HOURS = max(
+    1,
+    min(int(os.getenv("SESSION_RENEW_BEFORE_HOURS", "168")), SESSION_TTL_HOURS - 1),
+)
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", str(6 * 1024 * 1024)))
 
@@ -146,14 +150,25 @@ READING_TASK_STATUSES = {"todo", "doing", "done"}
 
 def _session_payload(request: Request) -> dict[str, Any] | None:
     token = request.cookies.get(SESSION_COOKIE, "")
-    return store.get_session(token)
+    return store.get_session(
+        token,
+        ttl_hours=SESSION_TTL_HOURS,
+        renew_before_hours=SESSION_RENEW_BEFORE_HOURS,
+    )
 
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _set_session_cookie(response: Response, token: str, expires_at: str | None = None) -> None:
+    expires = datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)
+    if expires_at:
+        try:
+            expires = datetime.fromisoformat(expires_at)
+        except ValueError:
+            pass
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=SESSION_TTL_HOURS * 3600,
+        expires=expires,
         httponly=True,
         secure=COOKIE_SECURE,
         samesite="strict",
@@ -420,6 +435,7 @@ async def request_logging(request: Request, call_next):
 
     path = request.url.path
     public_paths = {"/", "/health", "/api/auth/login", "/api/auth/session"}
+    session: dict[str, Any] | None = None
     if path.startswith("/api/") and path not in public_paths:
         session = _session_payload(request)
         if session is None:
@@ -455,6 +471,10 @@ async def request_logging(request: Request, call_next):
 
     elapsed_ms = (time.perf_counter() - started) * 1000
     response.headers["x-request-id"] = request_id
+    if session is not None and session.get("renewed"):
+        token = request.cookies.get(SESSION_COOKIE, "")
+        if token:
+            _set_session_cookie(response, token, str(session.get("expires_at", "")))
     _apply_security_headers(response, path)
     logger.info(
         "request request_id=%s method=%s path=%s status=%s duration_ms=%.1f",
@@ -476,7 +496,7 @@ def login(payload: LoginPayload, response: Response):
         raise HTTPException(status_code=401, detail="invalid username or password")
     store.delete_all_sessions()
     token, session = store.create_session(SESSION_TTL_HOURS)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, session["expires_at"])
     logger.info("account login username=%s", user["username"])
     return {
         "authenticated": True,
@@ -488,7 +508,7 @@ def login(payload: LoginPayload, response: Response):
 
 
 @app.get("/api/auth/session")
-def auth_session(request: Request):
+def auth_session(request: Request, response: Response):
     session = _session_payload(request)
     if session is None:
         account = store.get_account()
@@ -496,6 +516,10 @@ def auth_session(request: Request):
             "authenticated": False,
             "default_credentials_active": bool(account["must_change_password"]),
         }
+    if session.get("renewed"):
+        token = request.cookies.get(SESSION_COOKIE, "")
+        if token:
+            _set_session_cookie(response, token, str(session.get("expires_at", "")))
     return {
         "authenticated": True,
         "username": session["username"],
@@ -528,7 +552,7 @@ def update_credentials(payload: CredentialUpdate, request: Request, response: Re
         raise HTTPException(status_code=401, detail="current password is incorrect")
     store.delete_all_sessions()
     token, session = store.create_session(SESSION_TTL_HOURS)
-    _set_session_cookie(response, token)
+    _set_session_cookie(response, token, session["expires_at"])
     logger.info("account credentials updated username=%s", account["username"])
     return {
         **account,

@@ -644,7 +644,12 @@ class ResearchStore:
             )
         return token, {"csrf_token": csrf_token, "expires_at": expires.isoformat()}
 
-    def get_session(self, token: str) -> dict[str, Any] | None:
+    def get_session(
+        self,
+        token: str,
+        ttl_hours: int | None = None,
+        renew_before_hours: int | None = None,
+    ) -> dict[str, Any] | None:
         if not token:
             return None
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -660,15 +665,22 @@ class ResearchStore:
             if expires <= now:
                 conn.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
                 return None
+            renewed = False
+            if ttl_hours and renew_before_hours is not None:
+                remaining = expires - now
+                if remaining <= timedelta(hours=max(0, renew_before_hours)):
+                    expires = now + timedelta(hours=ttl_hours)
+                    renewed = True
             conn.execute(
-                "UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ?",
-                (now.isoformat(), token_hash),
+                "UPDATE auth_sessions SET last_seen_at = ?, expires_at = ? WHERE token_hash = ?",
+                (now.isoformat(), expires.isoformat(), token_hash),
             )
             user = conn.execute("SELECT username, must_change_password FROM auth_user WHERE id = 1").fetchone()
         return {
             "token_hash": token_hash,
             "csrf_token": row["csrf_token"],
-            "expires_at": row["expires_at"],
+            "expires_at": expires.isoformat(),
+            "renewed": renewed,
             "username": user["username"],
             "must_change_password": bool(user["must_change_password"]),
         }

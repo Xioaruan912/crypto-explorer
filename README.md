@@ -106,7 +106,8 @@ ENABLE_EPRINT_LOOKUP=false
 SEMANTIC_SCHOLAR_API_KEY=
 OPENALEX_API_KEY=
 OPENALEX_MAILTO=
-SESSION_TTL_HOURS=24
+SESSION_TTL_HOURS=720
+SESSION_RENEW_BEFORE_HOURS=168
 COOKIE_SECURE=false
 ENABLE_API_DOCS=false
 MAX_REQUEST_BYTES=6291456
@@ -120,7 +121,8 @@ MAX_REQUEST_BYTES=6291456
 | `SEMANTIC_SCHOLAR_API_KEY` | 空 | 可选；未配置时仍可通过 OpenAlex 容错 |
 | `OPENALEX_API_KEY` | 空 | 可选；频繁使用概念谱系时建议配置以提升 OpenAlex 配额 |
 | `OPENALEX_MAILTO` | 空 | 可选；OpenAlex polite pool 联系邮箱 |
-| `SESSION_TTL_HOURS` | `24` | 登录会话有效时长 |
+| `SESSION_TTL_HOURS` | `720` | 登录会话有效时长，默认 30 天 |
+| `SESSION_RENEW_BEFORE_HOURS` | `168` | 会话剩余不足该时长时自动续期，默认剩余 7 天时续回 30 天 |
 | `COOKIE_SECURE` | `false` | HTTPS 部署时应设置为 `true` |
 | `ENABLE_API_DOCS` | `false` | 是否开放 FastAPI `/docs` 和 OpenAPI 文档 |
 | `MAX_REQUEST_BYTES` | `6291456` | 单次请求体最大字节数 |
