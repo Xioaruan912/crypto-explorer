@@ -188,19 +188,22 @@ class ResearchStore:
         return self._row_to_item(row)
 
     def update_reading(self, paper_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
-        allowed = {"status", "priority", "note"}
-        updates = {key: value for key, value in fields.items() if key in allowed and value is not None}
-        if not updates:
-            with self._connect() as conn:
-                row = conn.execute("SELECT * FROM reading_list WHERE paper_id = ?", (paper_id,)).fetchone()
-            return self._row_to_item(row) if row else None
-
-        assignments = ", ".join(f"{key} = ?" for key in updates)
-        values = list(updates.values()) + [paper_id]
         with self._lock, self._connect() as conn:
+            current = conn.execute(
+                "SELECT * FROM reading_list WHERE paper_id = ?", (paper_id,)
+            ).fetchone()
+            if current is None:
+                return None
+            status = fields.get("status") if fields.get("status") is not None else current["status"]
+            priority = fields.get("priority") if fields.get("priority") is not None else current["priority"]
+            note = fields.get("note") if fields.get("note") is not None else current["note"]
             conn.execute(
-                f"UPDATE reading_list SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE paper_id = ?",
-                values,
+                """
+                UPDATE reading_list
+                SET status = ?, priority = ?, note = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE paper_id = ?
+                """,
+                (status, priority, note, paper_id),
             )
             row = conn.execute("SELECT * FROM reading_list WHERE paper_id = ?", (paper_id,)).fetchone()
         return self._row_to_item(row) if row else None
@@ -259,16 +262,22 @@ class ResearchStore:
         return self._row_to_reading_task(row)
 
     def update_reading_task(self, task_id: int, fields: dict[str, Any]) -> dict[str, Any] | None:
-        allowed = {"scheduled_date", "task_type", "task_text", "status"}
-        updates = {key: value for key, value in fields.items() if key in allowed and value is not None}
         with self._lock, self._connect() as conn:
-            if updates:
-                assignments = ", ".join(f"{key} = ?" for key in updates)
-                values = list(updates.values()) + [task_id]
-                conn.execute(
-                    f"UPDATE reading_tasks SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    values,
-                )
+            current = conn.execute("SELECT * FROM reading_tasks WHERE id = ?", (task_id,)).fetchone()
+            if current is None:
+                return None
+            scheduled_date = fields.get("scheduled_date") if fields.get("scheduled_date") is not None else current["scheduled_date"]
+            task_type = fields.get("task_type") if fields.get("task_type") is not None else current["task_type"]
+            task_text = fields.get("task_text") if fields.get("task_text") is not None else current["task_text"]
+            status = fields.get("status") if fields.get("status") is not None else current["status"]
+            conn.execute(
+                """
+                UPDATE reading_tasks
+                SET scheduled_date = ?, task_type = ?, task_text = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (scheduled_date, task_type, task_text, status, task_id),
+            )
             row = conn.execute(
                 """
                 SELECT task.*, reading.paper_json
@@ -384,16 +393,20 @@ class ResearchStore:
         return dict(row)
 
     def update_profile(self, fields: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"display_name", "role", "institution", "research_interests"}
-        updates = {key: value for key, value in fields.items() if key in allowed and value is not None}
-        if updates:
-            assignments = ", ".join(f"{key} = ?" for key in updates)
-            values = list(updates.values())
-            with self._lock, self._connect() as conn:
-                conn.execute(
-                    f"UPDATE user_profile SET {assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
-                    values,
-                )
+        with self._lock, self._connect() as conn:
+            current = conn.execute("SELECT * FROM user_profile WHERE id = 1").fetchone()
+            display_name = fields.get("display_name") if fields.get("display_name") is not None else current["display_name"]
+            role = fields.get("role") if fields.get("role") is not None else current["role"]
+            institution = fields.get("institution") if fields.get("institution") is not None else current["institution"]
+            research_interests = fields.get("research_interests") if fields.get("research_interests") is not None else current["research_interests"]
+            conn.execute(
+                """
+                UPDATE user_profile
+                SET display_name = ?, role = ?, institution = ?, research_interests = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """,
+                (display_name, role, institution, research_interests),
+            )
         return self.get_profile()
 
     def dashboard(self) -> dict[str, Any]:
@@ -542,7 +555,9 @@ class ResearchStore:
             conn.execute("DELETE FROM auth_sessions")
 
     def get_account(self) -> dict[str, Any]:
-        with self._connect() as conn:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (now,))
             row = conn.execute("SELECT username, must_change_password, updated_at FROM auth_user WHERE id = 1").fetchone()
             session_count = conn.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
         return {
@@ -569,9 +584,14 @@ class ResearchStore:
 
     def export_backup(self) -> dict[str, Any]:
         with self._connect() as conn:
-            tables = {}
-            for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes"):
-                tables[table] = [dict(row) for row in conn.execute(f"SELECT * FROM {table}").fetchall()]
+            tables = {
+                "reading_list": [dict(row) for row in conn.execute("SELECT * FROM reading_list").fetchall()],
+                "reading_tasks": [dict(row) for row in conn.execute("SELECT * FROM reading_tasks").fetchall()],
+                "favorites": [dict(row) for row in conn.execute("SELECT * FROM favorites").fetchall()],
+                "search_history": [dict(row) for row in conn.execute("SELECT * FROM search_history").fetchall()],
+                "user_profile": [dict(row) for row in conn.execute("SELECT * FROM user_profile").fetchall()],
+                "notes": [dict(row) for row in conn.execute("SELECT * FROM notes").fetchall()],
+            }
         return {
             "format": "crypto-explorer-backup",
             "version": 1,
@@ -593,6 +613,9 @@ class ResearchStore:
             "user_profile": ["id", "display_name", "role", "institution", "research_interests", "updated_at"],
             "notes": ["paper_id", "paper_json", "title", "content", "created_at", "updated_at"],
         }
+        unknown_tables = set(tables) - set(allowed_columns)
+        if unknown_tables:
+            raise ValueError("backup contains unsupported tables")
         normalized: dict[str, list[dict[str, Any]]] = {}
         total_rows = 0
         for table, columns in allowed_columns.items():
@@ -660,17 +683,25 @@ class ResearchStore:
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                for table in ("reading_tasks", "notes", "favorites", "search_history", "reading_list", "user_profile"):
-                    conn.execute(f"DELETE FROM {table}")
+                conn.execute("DELETE FROM reading_tasks")
+                conn.execute("DELETE FROM notes")
+                conn.execute("DELETE FROM favorites")
+                conn.execute("DELETE FROM search_history")
+                conn.execute("DELETE FROM reading_list")
+                conn.execute("DELETE FROM user_profile")
+
+                insert_sql = {
+                    "reading_list": "INSERT INTO reading_list (paper_id, paper_json, status, priority, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "reading_tasks": "INSERT INTO reading_tasks (id, paper_id, task_type, task_text, scheduled_date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "favorites": "INSERT INTO favorites (paper_id, paper_json, created_at) VALUES (?, ?, ?)",
+                    "search_history": "INSERT INTO search_history (id, query, result_count, seed_title, search_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "user_profile": "INSERT INTO user_profile (id, display_name, role, institution, research_interests, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "notes": "INSERT INTO notes (paper_id, paper_json, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                }
                 for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes"):
                     columns = allowed_columns[table]
-                    placeholders = ",".join("?" for _ in columns)
-                    names = ",".join(columns)
                     for row in normalized[table]:
-                        conn.execute(
-                            f"INSERT INTO {table} ({names}) VALUES ({placeholders})",
-                            tuple(row[column] for column in columns),
-                        )
+                        conn.execute(insert_sql[table], tuple(row[column] for column in columns))
                 conn.execute("INSERT OR IGNORE INTO user_profile (id) VALUES (1)")
                 conn.commit()
             except Exception:

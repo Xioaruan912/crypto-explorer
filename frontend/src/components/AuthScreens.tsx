@@ -6,7 +6,7 @@ import { authService } from '@/services/authService';
 import { AuthSession } from '@/types/research';
 
 export function LoginScreen({ defaultCredentialsActive, onAuthenticated }: { defaultCredentialsActive: boolean; onAuthenticated: (session: AuthSession) => void }) {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState(defaultCredentialsActive ? 'admin' : '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +50,7 @@ export function ForcedPasswordChange({ session, onChanged }: { session: AuthSess
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (newPassword !== confirm) return setError('两次输入的新密码不一致');
-    if (newPassword.length < 8) return setError('新密码至少 8 位');
+    if (newPassword.length < 10) return setError('新密码至少 10 位');
     setLoading(true);
     setError('');
     try {
@@ -70,7 +70,7 @@ export function ForcedPasswordChange({ session, onChanged }: { session: AuthSess
       <p className="mt-2 text-sm leading-6 text-gray-500">账号 <strong>{session.username}</strong> 仍在使用初始化密码。完成修改前，其他研究 API 都不会开放。</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <PasswordField label="当前密码" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
-        <PasswordField label="新密码（至少 8 位）" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+        <PasswordField label="新密码（至少 10 位）" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
         <PasswordField label="确认新密码" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>}
         <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#6D4AFF] py-2.5 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50">{loading && <Loader2 size={16} className="animate-spin" />}保存新密码并进入</button>

@@ -24,12 +24,14 @@
 - 会话 token 使用高熵随机值，数据库只保存 token 的 SHA-256 摘要。
 - 会话 Cookie 为 `HttpOnly`、`SameSite=Strict`；HTTPS 部署应启用 `COOKIE_SECURE=true`。
 - 所有研究 API 需要登录；所有写接口需要会话绑定的 CSRF token。
-- 连续 5 次登录失败会锁定账号 15 分钟。
+- 连续 5 次错误登录会对错误尝试启用 15 分钟节流；正确凭据仍可恢复登录，避免恶意请求把管理员永久锁在外面。
+- 新密码至少 10 个字符，修改凭据后会立即轮换会话并撤销旧会话。
 - FastAPI 文档生产环境默认关闭。
 - 备份导入限制大小、格式和数据行数，并在 SQLite 事务中执行；失败整体回滚。
 - 备份导出不包含密码哈希、会话 token 或 CSRF token。
 - OpenAlex 路径 ID 使用固定格式校验，外部 URL 只允许 `http` / `https`。
 - 响应启用 `nosniff`、`DENY` frame policy、严格 referrer policy、permissions policy 和 CSP。
+- CI 会执行 `npm audit`、`pip-audit`、Bandit 中高风险扫描和认证/备份安全回归测试。
 
 ## Transport security
 

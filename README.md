@@ -70,7 +70,7 @@ http://localhost:3000
 密码：123456
 ```
 
-首次登录后系统会强制修改默认密码；在完成改密前，其他研究 API 不可用。
+首次登录后系统会强制修改默认密码（新密码至少 10 个字符）；在完成改密前，其他研究 API 不可用。
 
 查看状态：
 
@@ -212,7 +212,9 @@ GitHub Actions 会在 `main` push 和 Pull Request 上执行：
 - 生产环境若通过 HTTPS 访问，请把 `COOKIE_SECURE=true`。
 - 生产环境默认关闭 FastAPI API 文档。
 - 所有研究 API 都要求登录；POST / PUT / PATCH / DELETE 还要求会话绑定 CSRF token。
-- 连续 5 次登录失败后会锁定 15 分钟。
+- 连续 5 次错误登录后会对错误尝试节流 15 分钟；正确凭据仍可恢复登录。
+- 修改用户名或密码后会轮换会话并撤销旧会话。
+- CI 持续运行 `npm audit`、`pip-audit`、Bandit 和认证/备份安全回归测试。
 - 外部论文 / 作者 / 会议链接在前端只允许 `http` / `https` 协议。
 
 安全问题请参阅 [SECURITY.md](SECURITY.md)。

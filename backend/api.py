@@ -105,7 +105,7 @@ class LoginPayload(BaseModel):
 class CredentialUpdate(BaseModel):
     current_password: str = Field(min_length=1, max_length=200)
     username: str | None = Field(default=None, min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.-]+$")
-    new_password: str | None = Field(default=None, min_length=8, max_length=200)
+    new_password: str | None = Field(default=None, min_length=10, max_length=200)
 
 
 class BackupImport(BaseModel):
@@ -181,6 +181,13 @@ def _validate_reading_task_fields(values: dict) -> None:
         raise HTTPException(status_code=422, detail="invalid reading task type")
     if values.get("status") is not None and values["status"] not in READING_TASK_STATUSES:
         raise HTTPException(status_code=422, detail="invalid reading task status")
+
+
+def _paper_id(paper: dict[str, Any]) -> str:
+    paper_id = str(paper.get("id", "")).strip()
+    if not paper_id or len(paper_id) > 300:
+        raise HTTPException(status_code=422, detail="paper.id is required and must be at most 300 characters")
+    return paper_id
 
 
 def _load_cached_graph(query: str, max_nodes: int) -> ResearchGraph | None:
@@ -487,7 +494,7 @@ def import_backup(payload: BackupImport):
 
 @app.get("/")
 def read_root():
-    return {"status": "ok", "service": "crypto-explorer-api", "version": "1.0.0"}
+    return {"status": "ok", "service": "crypto-explorer-api"}
 
 @app.get("/health")
 def health():
@@ -501,9 +508,7 @@ def get_reading_list():
 
 @app.post("/api/reading-list")
 def add_reading_list(payload: ReadingListCreate):
-    paper_id = str(payload.paper.get("id", "")).strip()
-    if not paper_id:
-        raise HTTPException(status_code=422, detail="paper.id is required")
+    paper_id = _paper_id(payload.paper)
     if payload.status not in {"to_read", "reading", "done"}:
         raise HTTPException(status_code=422, detail="invalid reading status")
     item = store.upsert_reading(payload.paper, payload.status, payload.priority, payload.note)
@@ -512,7 +517,7 @@ def add_reading_list(payload: ReadingListCreate):
 
 
 @app.patch("/api/reading-list/{paper_id}")
-def update_reading_list(paper_id: str, payload: ReadingListUpdate):
+def update_reading_list(payload: ReadingListUpdate, paper_id: str = ApiPath(min_length=1, max_length=300)):
     values = payload.model_dump(exclude_unset=True)
     if "status" in values and values["status"] not in {"to_read", "reading", "done"}:
         raise HTTPException(status_code=422, detail="invalid reading status")
@@ -524,7 +529,7 @@ def update_reading_list(paper_id: str, payload: ReadingListUpdate):
 
 
 @app.delete("/api/reading-list/{paper_id}")
-def delete_reading_list(paper_id: str):
+def delete_reading_list(paper_id: str = ApiPath(min_length=1, max_length=300)):
     if not store.delete_reading(paper_id):
         raise HTTPException(status_code=404, detail="reading list item not found")
     logger.info("reading list delete paper_id=%s", paper_id)
@@ -586,16 +591,14 @@ def get_favorites():
 
 @app.post("/api/favorites")
 def add_favorite(payload: FavoriteCreate):
-    paper_id = str(payload.paper.get("id", "")).strip()
-    if not paper_id:
-        raise HTTPException(status_code=422, detail="paper.id is required")
+    paper_id = _paper_id(payload.paper)
     item = store.upsert_favorite(payload.paper)
     logger.info("favorite upsert paper_id=%s", paper_id)
     return item
 
 
 @app.delete("/api/favorites/{paper_id}")
-def delete_favorite(paper_id: str):
+def delete_favorite(paper_id: str = ApiPath(min_length=1, max_length=300)):
     if not store.delete_favorite(paper_id):
         raise HTTPException(status_code=404, detail="favorite not found")
     logger.info("favorite delete paper_id=%s", paper_id)
@@ -644,7 +647,7 @@ def get_notes():
 
 
 @app.get("/api/notes/{paper_id}")
-def get_note(paper_id: str):
+def get_note(paper_id: str = ApiPath(min_length=1, max_length=300)):
     note = store.get_note(paper_id)
     if note is None:
         raise HTTPException(status_code=404, detail="note not found")
@@ -652,15 +655,15 @@ def get_note(paper_id: str):
 
 
 @app.put("/api/notes/{paper_id}")
-def save_note(paper_id: str, payload: NoteUpsert):
-    body_id = str(payload.paper.get("id", "")).strip()
+def save_note(payload: NoteUpsert, paper_id: str = ApiPath(min_length=1, max_length=300)):
+    body_id = _paper_id(payload.paper)
     if not body_id or body_id != paper_id:
         raise HTTPException(status_code=422, detail="paper.id must match path")
     return store.upsert_note(payload.paper, payload.title, payload.content)
 
 
 @app.delete("/api/notes/{paper_id}")
-def delete_note(paper_id: str):
+def delete_note(paper_id: str = ApiPath(min_length=1, max_length=300)):
     if not store.delete_note(paper_id):
         raise HTTPException(status_code=404, detail="note not found")
     return {"status": "deleted"}

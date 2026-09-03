@@ -140,10 +140,13 @@ def main() -> int:
 
             with sqlite3.connect(db_path) as conn:
                 stored_hash = conn.execute("SELECT password_hash FROM auth_user WHERE id = 1").fetchone()[0]
+                stored_session_hash = conn.execute(
+                    "SELECT token_hash FROM auth_sessions ORDER BY created_at DESC LIMIT 1"
+                ).fetchone()[0]
             assert stored_hash.startswith("scrypt$")
             raw_db = db_path.read_bytes()
             assert generated_password.encode() not in raw_db
-            assert hashlib.sha256(second_cookie.encode()).hexdigest().encode() in raw_db
+            assert stored_session_hash == hashlib.sha256(second_cookie.encode()).hexdigest()
             assert second_cookie.encode() not in raw_db
 
             for _ in range(5):

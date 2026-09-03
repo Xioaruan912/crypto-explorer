@@ -311,7 +311,7 @@ function AccountView() {
 
   const saveCredentials = async () => {
     if (newPassword && newPassword !== confirmPassword) return setError('两次输入的新密码不一致');
-    if (newPassword && newPassword.length < 8) return setError('新密码至少 8 位');
+    if (newPassword && newPassword.length < 10) return setError('新密码至少 10 位');
     setBusy(true); setError(''); setMessage('');
     try {
       const updated = await authService.updateCredentials({
@@ -349,7 +349,7 @@ function AccountView() {
         <div className="space-y-4">
           <Field label="用户名" value={username} onChange={setUsername} />
           <PasswordInput label="当前密码（修改时必填）" value={currentPassword} onChange={setCurrentPassword} />
-          <PasswordInput label="新密码（留空则不修改，至少 8 位）" value={newPassword} onChange={setNewPassword} />
+          <PasswordInput label="新密码（留空则不修改，至少 10 位）" value={newPassword} onChange={setNewPassword} />
           <PasswordInput label="确认新密码" value={confirmPassword} onChange={setConfirmPassword} />
           <button disabled={busy || !currentPassword} onClick={saveCredentials} className="rounded-lg bg-[#6D4AFF] px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40">保存账户设置</button>
         </div>
