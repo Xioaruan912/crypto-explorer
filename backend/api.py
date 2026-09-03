@@ -5,6 +5,7 @@ import uuid
 import json
 import hmac
 import sqlite3
+import secrets
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from fetchers.semantic_scholar import SemanticScholarClient
 from fetchers.openalex import OpenAlexClient
 from analyzer.graph_builder import GraphBuilder
 from analyzer.heuristic_engine import HeuristicEngine
+from analyzer.concept_genealogy import ConceptGenealogyEngine
 from core.logging_config import configure_logging
 from core.research_store import ResearchStore
 
@@ -62,6 +64,8 @@ builder = GraphBuilder(s2_client)
 openalex_client = OpenAlexClient()
 openalex_builder = GraphBuilder(openalex_client)
 engine = HeuristicEngine()
+genealogy_engine = ConceptGenealogyEngine(openalex_client)
+GENEALOGY_CACHE_VERSION = 3
 
 CACHE_DIR = Path(__file__).resolve().parent / "output"
 store = ResearchStore(os.getenv("RESEARCH_DB_PATH", "/app/data/research.db"))
@@ -110,6 +114,13 @@ class CredentialUpdate(BaseModel):
 
 class BackupImport(BaseModel):
     backup: dict[str, Any]
+
+
+class PaperDrawRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=300)
+    from_year: int | None = Field(default=None, ge=1800, le=2100)
+    to_year: int | None = Field(default=None, ge=1800, le=2100)
+    foundational_only: bool = True
 
 
 class ReadingTaskCreate(BaseModel):
@@ -322,6 +333,47 @@ def _discovery_provider_error(operation: str, error: Exception) -> HTTPException
         if error.response.status_code == 429 or error.response.status_code >= 500:
             return HTTPException(status_code=503, detail="OpenAlex is temporarily unavailable. Please try again later.")
     return HTTPException(status_code=502, detail="Unable to load research discovery data.")
+
+
+def _genealogy_cache_key(query: str, from_year: int | None, to_year: int | None) -> str:
+    return json.dumps(
+        {
+            "version": GENEALOGY_CACHE_VERSION,
+            "query": " ".join(query.casefold().split()),
+            "from_year": from_year,
+            "to_year": to_year,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def _load_genealogy(query: str, from_year: int | None, to_year: int | None) -> dict[str, Any]:
+    cache_key = _genealogy_cache_key(query, from_year, to_year)
+    cached = store.get_genealogy_cache(cache_key, max_age_hours=24)
+    if cached is not None:
+        cached["cacheStatus"] = "fresh"
+        return cached
+    try:
+        result = genealogy_engine.build(query, from_year=from_year, to_year=to_year, pool_size=40)
+        store.upsert_genealogy_cache(cache_key, result)
+        result["cacheStatus"] = "live"
+        return result
+    except (requests.RequestException, ValueError):
+        stale = store.get_genealogy_cache(cache_key, max_age_hours=None)
+        if stale is not None:
+            logger.warning("genealogy provider unavailable; serving stale cache query=%r", query)
+            stale["cacheStatus"] = "stale"
+            return stale
+        raise
+
+
+def _trim_genealogy(result: dict[str, Any], pool_size: int) -> dict[str, Any]:
+    payload = dict(result)
+    pool = list(result.get("pool") or [])
+    payload["pool"] = pool[:pool_size]
+    payload["poolCount"] = len(pool)
+    return payload
 
 
 @app.middleware("http")
@@ -667,6 +719,115 @@ def delete_note(paper_id: str = ApiPath(min_length=1, max_length=300)):
     if not store.delete_note(paper_id):
         raise HTTPException(status_code=404, detail="note not found")
     return {"status": "deleted"}
+
+
+@app.get("/api/genealogy")
+def concept_genealogy(
+    query: str = Query(min_length=2, max_length=300),
+    from_year: int | None = Query(default=None, ge=1800, le=2100),
+    to_year: int | None = Query(default=None, ge=1800, le=2100),
+    pool_size: int = Query(default=24, ge=8, le=50),
+):
+    normalized_query = query.strip()
+    if from_year and to_year and from_year > to_year:
+        raise HTTPException(status_code=422, detail="from_year cannot be greater than to_year")
+    try:
+        result = _trim_genealogy(_load_genealogy(normalized_query, from_year, to_year), pool_size)
+        logger.info(
+            "concept genealogy completed query=%r pool=%s origin=%s",
+            normalized_query,
+            result.get("poolCount"),
+            ((result.get("origin") or {}).get("paper") or {}).get("paperId"),
+        )
+        return result
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except Exception as error:
+        raise _discovery_provider_error("genealogy", error) from error
+
+
+@app.get("/api/paper-draw/history")
+def get_paper_draw_history(limit: int = Query(default=20, ge=1, le=100)):
+    return {"items": store.list_draw_history(limit)}
+
+
+@app.delete("/api/paper-draw/history")
+def clear_paper_draw_history():
+    deleted = store.clear_draw_history()
+    logger.info("paper draw history cleared count=%s", deleted)
+    return {"status": "deleted", "count": deleted}
+
+
+@app.post("/api/paper-draw")
+def draw_foundational_paper(payload: PaperDrawRequest):
+    normalized_query = payload.query.strip()
+    if payload.from_year and payload.to_year and payload.from_year > payload.to_year:
+        raise HTTPException(status_code=422, detail="from_year cannot be greater than to_year")
+    try:
+        genealogy = _load_genealogy(normalized_query, payload.from_year, payload.to_year)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except Exception as error:
+        raise _discovery_provider_error("paper-draw", error) from error
+
+    candidates: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def add_candidate(item: dict[str, Any] | None) -> None:
+        if not item:
+            return
+        paper = item.get("paper") or {}
+        paper_id = str(paper.get("paperId") or "")
+        if not paper_id or paper_id in seen_ids:
+            return
+        seen_ids.add(paper_id)
+        candidates.append(item)
+
+    add_candidate(genealogy.get("origin"))
+    for item in genealogy.get("pool") or []:
+        if not payload.foundational_only or item.get("drawEligible"):
+            add_candidate(item)
+    if not payload.foundational_only:
+        for item in genealogy.get("anchors") or []:
+            add_candidate(item)
+
+    if not candidates:
+        raise HTTPException(status_code=404, detail="No foundational papers found for this topic and time range")
+
+    recent_ids = {
+        str((entry.get("paper") or {}).get("paperId") or "")
+        for entry in store.list_draw_history(10)
+    }
+    available = [
+        item for item in candidates
+        if str((item.get("paper") or {}).get("paperId") or "") not in recent_ids
+    ] or candidates
+    selected = secrets.choice(available)
+    history_item = store.add_draw_history(
+        normalized_query,
+        selected["paper"],
+        str(selected.get("reason") or ""),
+    )
+
+    reel = list(candidates[:18])
+    secrets.SystemRandom().shuffle(reel)
+    selected_id = str(selected["paper"].get("paperId") or "")
+    reel = [item for item in reel if str((item.get("paper") or {}).get("paperId") or "") != selected_id]
+    reel = reel[:12] + [selected]
+    logger.info(
+        "paper draw completed query=%r paper_id=%s candidates=%s foundational_only=%s",
+        normalized_query,
+        selected_id,
+        len(candidates),
+        payload.foundational_only,
+    )
+    return {
+        "selected": selected,
+        "reel": reel,
+        "poolCount": len(candidates),
+        "historyItem": history_item,
+        "origin": genealogy.get("origin"),
+    }
 
 
 @app.get("/api/discovery/papers")

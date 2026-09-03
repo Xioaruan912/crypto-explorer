@@ -1,6 +1,7 @@
 import { Paper } from './paper';
 
-export type ResearchView = 'graph' | 'timeline' | 'citations' | 'reading' | 'papers' | 'authors' | 'venues';
+export type ResearchView = 'graph' | 'timeline' | 'citations' | 'reading' | 'papers' | 'authors' | 'venues' | 'draw';
+export type StudyMode = 'related' | 'origin' | 'learning';
 export type ReadingStatus = 'to_read' | 'reading' | 'done';
 export type ReadingTaskStatus = 'todo' | 'doing' | 'done';
 export type ReadingTaskType = 'read' | 'notes' | 'review' | 'reproduce' | 'custom';
@@ -86,4 +87,44 @@ export interface AccountInfo {
   must_change_password: boolean;
   updated_at: string;
   active_sessions: number;
+}
+
+export interface GenealogyPaper {
+  paper: Paper;
+  distance: number;
+  anchorCoverage: number;
+  reason: string;
+}
+
+export interface GenealogyStage {
+  stage: '前置基础' | '关键经典' | '概念开山' | '当前代表';
+  papers: GenealogyPaper[];
+}
+
+export interface GenealogyData {
+  query: string;
+  historicalQuery?: string | null;
+  anchors: GenealogyPaper[];
+  origin: GenealogyPaper | null;
+  prerequisites: GenealogyPaper[];
+  classics: GenealogyPaper[];
+  learningPath: GenealogyStage[];
+  pool: GenealogyPaper[];
+  poolCount: number;
+}
+
+export interface DrawHistoryItem {
+  id: number;
+  query: string;
+  paper: Paper;
+  reason: string;
+  created_at: string;
+}
+
+export interface DrawResponse {
+  selected: GenealogyPaper;
+  reel: GenealogyPaper[];
+  poolCount: number;
+  historyItem: DrawHistoryItem;
+  origin: GenealogyPaper | null;
 }

@@ -114,6 +114,30 @@ class ResearchStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS paper_draw_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    query TEXT NOT NULL,
+                    paper_id TEXT NOT NULL,
+                    paper_json TEXT NOT NULL,
+                    reason TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_paper_draw_history_id ON paper_draw_history(id DESC)"
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS genealogy_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS auth_user (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     username TEXT NOT NULL UNIQUE,
@@ -293,6 +317,78 @@ class ResearchStore:
         with self._lock, self._connect() as conn:
             cur = conn.execute("DELETE FROM reading_tasks WHERE id = ?", (task_id,))
             return cur.rowcount > 0
+
+    def add_draw_history(self, query: str, paper: dict[str, Any], reason: str) -> dict[str, Any]:
+        paper_id = str(paper.get("paperId") or paper.get("id") or "").strip()
+        if not paper_id:
+            raise ValueError("paper id is required")
+        payload = json.dumps(paper, ensure_ascii=False)
+        with self._lock, self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO paper_draw_history (query, paper_id, paper_json, reason) VALUES (?, ?, ?, ?)",
+                (query, paper_id, payload, reason),
+            )
+            conn.execute(
+                "DELETE FROM paper_draw_history WHERE id NOT IN (SELECT id FROM paper_draw_history ORDER BY id DESC LIMIT 500)"
+            )
+            row = conn.execute(
+                "SELECT * FROM paper_draw_history WHERE id = ?",
+                (cur.lastrowid,),
+            ).fetchone()
+        return self._row_to_draw(row)
+
+    def list_draw_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM paper_draw_history ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._row_to_draw(row) for row in rows]
+
+    def clear_draw_history(self) -> int:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM paper_draw_history")
+            return cur.rowcount
+
+    def get_genealogy_cache(self, cache_key: str, max_age_hours: int | None = 24) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            if max_age_hours is None:
+                row = conn.execute(
+                    "SELECT payload_json FROM genealogy_cache WHERE cache_key = ?",
+                    (cache_key,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT payload_json FROM genealogy_cache
+                    WHERE cache_key = ? AND updated_at >= datetime('now', ?)
+                    """,
+                    (cache_key, f"-{max(1, max_age_hours)} hours"),
+                ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload_json"])
+            return payload if isinstance(payload, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    def upsert_genealogy_cache(self, cache_key: str, payload: dict[str, Any]) -> None:
+        encoded = json.dumps(payload, ensure_ascii=False)
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO genealogy_cache (cache_key, payload_json, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(cache_key) DO UPDATE SET
+                  payload_json = excluded.payload_json,
+                  updated_at = CURRENT_TIMESTAMP
+                """,
+                (cache_key, encoded),
+            )
+            conn.execute(
+                "DELETE FROM genealogy_cache WHERE cache_key NOT IN (SELECT cache_key FROM genealogy_cache ORDER BY updated_at DESC LIMIT 100)"
+            )
 
     def list_favorites(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -591,6 +687,7 @@ class ResearchStore:
                 "search_history": [dict(row) for row in conn.execute("SELECT * FROM search_history").fetchall()],
                 "user_profile": [dict(row) for row in conn.execute("SELECT * FROM user_profile").fetchall()],
                 "notes": [dict(row) for row in conn.execute("SELECT * FROM notes").fetchall()],
+                "paper_draw_history": [dict(row) for row in conn.execute("SELECT * FROM paper_draw_history").fetchall()],
             }
         return {
             "format": "crypto-explorer-backup",
@@ -612,6 +709,7 @@ class ResearchStore:
             "search_history": ["id", "query", "result_count", "seed_title", "search_type", "created_at"],
             "user_profile": ["id", "display_name", "role", "institution", "research_interests", "updated_at"],
             "notes": ["paper_id", "paper_json", "title", "content", "created_at", "updated_at"],
+            "paper_draw_history": ["id", "query", "paper_id", "paper_json", "reason", "created_at"],
         }
         unknown_tables = set(tables) - set(allowed_columns)
         if unknown_tables:
@@ -629,9 +727,10 @@ class ResearchStore:
                 item = {column: row.get(column) for column in columns}
                 if "paper_json" in item and item["paper_json"] is not None:
                     parsed = json.loads(item["paper_json"])
-                    if not isinstance(parsed, dict) or not str(parsed.get("id", "")).strip():
+                    parsed_id = str(parsed.get("id") or parsed.get("paperId") or "").strip() if isinstance(parsed, dict) else ""
+                    if not isinstance(parsed, dict) or not parsed_id:
                         raise ValueError(f"invalid paper payload: {table}")
-                    if str(item.get("paper_id", "")) != str(parsed.get("id", "")):
+                    if str(item.get("paper_id", "")) != parsed_id:
                         raise ValueError(f"paper id mismatch: {table}")
                 normalized[table].append(item)
                 total_rows += 1
@@ -679,6 +778,15 @@ class ResearchStore:
                 raise ValueError("invalid note title")
             if not isinstance(row["content"], str) or len(row["content"]) > 500000:
                 raise ValueError("invalid note content")
+        seen_draw_ids: set[int] = set()
+        for row in normalized["paper_draw_history"]:
+            if not isinstance(row["id"], int) or row["id"] <= 0 or row["id"] in seen_draw_ids:
+                raise ValueError("invalid draw history id")
+            seen_draw_ids.add(row["id"])
+            if not isinstance(row["query"], str) or not row["query"].strip() or len(row["query"]) > 300:
+                raise ValueError("invalid draw query")
+            if not isinstance(row["reason"], str) or len(row["reason"]) > 2000:
+                raise ValueError("invalid draw reason")
 
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -687,6 +795,7 @@ class ResearchStore:
                 conn.execute("DELETE FROM notes")
                 conn.execute("DELETE FROM favorites")
                 conn.execute("DELETE FROM search_history")
+                conn.execute("DELETE FROM paper_draw_history")
                 conn.execute("DELETE FROM reading_list")
                 conn.execute("DELETE FROM user_profile")
 
@@ -697,8 +806,9 @@ class ResearchStore:
                     "search_history": "INSERT INTO search_history (id, query, result_count, seed_title, search_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "user_profile": "INSERT INTO user_profile (id, display_name, role, institution, research_interests, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "notes": "INSERT INTO notes (paper_id, paper_json, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "paper_draw_history": "INSERT INTO paper_draw_history (id, query, paper_id, paper_json, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                 }
-                for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes"):
+                for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes", "paper_draw_history"):
                     columns = allowed_columns[table]
                     for row in normalized[table]:
                         conn.execute(insert_sql[table], tuple(row[column] for column in columns))
@@ -741,4 +851,14 @@ class ResearchStore:
             "status": row["status"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _row_to_draw(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "query": row["query"],
+            "paper": json.loads(row["paper_json"]),
+            "reason": row["reason"],
+            "created_at": row["created_at"],
         }

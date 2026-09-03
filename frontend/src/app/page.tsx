@@ -12,18 +12,21 @@ import ReadingListView from '@/components/ReadingListView';
 import PaperDetailsPanel from '@/components/PaperDetailsPanel';
 import WorkspaceView from '@/components/WorkspaceView';
 import DiscoveryView from '@/components/DiscoveryView';
+import GenealogyView from '@/components/GenealogyView';
+import PaperDrawView from '@/components/PaperDrawView';
 import { ForcedPasswordChange, LoginScreen } from '@/components/AuthScreens';
 import { Network, BarChart3, Loader2, AlertCircle, Search, GitMerge, BookOpen } from 'lucide-react';
 import { paperService, GraphData } from '@/services/paperService';
 import { researchService } from '@/services/researchService';
 import { authService } from '@/services/authService';
-import { AuthSession, FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, WorkspaceSection } from '@/types/research';
+import { AuthSession, FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, StudyMode, WorkspaceSection } from '@/types/research';
 import { Paper } from '@/types/paper';
 
 export default function Home() {
   const [auth, setAuth] = useState<AuthSession | null>(null);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ResearchView>('graph');
+  const [studyMode, setStudyMode] = useState<StudyMode>('related');
   const [workspace, setWorkspace] = useState<WorkspaceSection | null>('dashboard');
   const [isSearching, setIsSearching] = useState(false);
   const [currentTopic, setCurrentTopic] = useState('');
@@ -58,6 +61,7 @@ export default function Home() {
   const switchResearchView = (mode: ResearchView) => {
     setWorkspace(null);
     setViewMode(mode);
+    if (mode === 'graph') setStudyMode('related');
     setSelectedPaperId(null);
     setDiscoverySelectedPaper(null);
   };
@@ -134,8 +138,9 @@ export default function Home() {
     }
   };
 
-  const handleSearch = async (query: string, range: ResearchTimeRange = researchTimeRange) => {
+  const handleSearch = async (query: string, range: ResearchTimeRange = researchTimeRange, resetStudyMode = true) => {
     setWorkspace(null);
+    if (resetStudyMode) setStudyMode('related');
     setIsSearching(true);
     setError(null);
     setCurrentTopic(query);
@@ -160,7 +165,7 @@ export default function Home() {
 
   const applyResearchTimeRange = (range: ResearchTimeRange) => {
     setResearchTimeRange(range);
-    if (currentTopic) void handleSearch(currentTopic, range);
+    if (currentTopic) void handleSearch(currentTopic, range, false);
   };
 
   const researchTimeRangeLabel = researchTimeRange.fromYear || researchTimeRange.toYear
@@ -245,6 +250,12 @@ export default function Home() {
                 onToggleFavorite={toggleFavorite}
                 onAddReading={addReading}
               />
+            ) : viewMode === 'draw' ? (
+              <PaperDrawView
+                readingIds={new Set(readingList.map((item) => item.paper.id))}
+                onSelectPaper={selectDiscoveryPaper}
+                onAddReading={addReading}
+              />
             ) : <>
             <div className="flex items-start justify-between mb-2">
               <div>
@@ -303,6 +314,24 @@ export default function Home() {
                 onTimeRangeChange={applyResearchTimeRange}
               />
             )}
+
+            {viewMode === 'graph' && graphData && currentTopic && (
+              <div className="mt-4 flex w-fit rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+                {([
+                  ['related', '相关论文'],
+                  ['origin', '寻找开山论文'],
+                  ['learning', '从基础开始学'],
+                ] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => setStudyMode(mode)}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${studyMode === mode ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
             
             {viewMode === 'reading' ? (
               <ReadingListView items={readingList} onUpdate={updateReading} onRemove={removeReading} onSelect={selectFromReading} />
@@ -316,11 +345,21 @@ export default function Home() {
                   在顶部输入密码学主题、论文标题或关键词。系统不会自动发起默认查询。
                 </p>
               </div>
-            ) : viewMode === 'graph' ? (
+            ) : viewMode === 'graph' && studyMode === 'related' ? (
               <ResearchMap 
                 onNodeClick={(id) => setSelectedPaperId(id)} 
                 activeFilter={activeFilter} 
                 graphData={graphData}
+              />
+            ) : viewMode === 'graph' && graphData && studyMode !== 'related' ? (
+              <GenealogyView
+                key={`${currentTopic}-${studyMode}-${researchTimeRange.fromYear || 'any'}-${researchTimeRange.toYear || 'any'}`}
+                query={currentTopic}
+                mode={studyMode}
+                range={researchTimeRange}
+                readingIds={new Set(readingList.map((item) => item.paper.id))}
+                onSelectPaper={selectDiscoveryPaper}
+                onAddReading={addReading}
               />
             ) : viewMode === 'timeline' && graphData ? (
               <TimelineView papers={graphData.papers} activeFilter={activeFilter} onSelect={setSelectedPaperId} />
@@ -328,7 +367,7 @@ export default function Home() {
               <CitationNetworkView graphData={graphData} selectedPaperId={selectedPaperId} onSelect={setSelectedPaperId} />
             ) : null}
             
-            {graphData && viewMode === 'graph' && <TimelineOverview activeFilter={activeFilter} papers={graphData.papers} timeRange={researchTimeRange} />}
+            {graphData && viewMode === 'graph' && studyMode === 'related' && <TimelineOverview activeFilter={activeFilter} papers={graphData.papers} timeRange={researchTimeRange} />}
             </>}
           </div>
         </main>

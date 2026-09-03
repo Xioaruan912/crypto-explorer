@@ -88,6 +88,7 @@ function HelpView() {
     ['开始研究', '在顶部搜索框输入主题、论文、作者或会议名称。系统只在你主动提交后搜索。', Search],
     ['文献图谱', '从种子论文展开引文关系，点击节点可查看摘要、来源、DOI 与引用信息。', FileSearch],
     ['时间线与引文网络', '用时间线观察研究演化；用引文网络识别关键节点与直接关联论文。', Clock3],
+    ['概念谱系与论文抽取', '“寻找开山论文”会沿参考文献向前追溯并结合历史术语；“论文抽取”先构建基础论文池，再均匀随机抽取，不设置稀有度。', FileSearch],
     ['阅读清单与每周 TODO', '把论文加入阅读库后，可按周一至周日安排“阅读、笔记、复习、复现”等任务，并独立跟踪完成状态。', BookOpenCheck],
     ['收藏与历史', '收藏重要论文；成功搜索会自动写入历史记录，可随时重新执行。', Bookmark],
     ['数据持久化', '阅读清单、收藏、搜索历史与个人资料都会保存在 SQLite 中，容器重启后仍保留。', CheckCircle2],
@@ -329,7 +330,7 @@ function AccountView() {
   };
 
   const importBackup = async (file: File) => {
-    if (!window.confirm('导入会替换当前阅读清单、TODO、收藏、历史、个人资料和笔记。登录账号与密码不会被覆盖。确定继续吗？')) return;
+    if (!window.confirm('导入会替换当前阅读清单、TODO、收藏、搜索历史、论文抽取历史、个人资料和笔记。登录账号与密码不会被覆盖。确定继续吗？')) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await authService.importBackup(file);

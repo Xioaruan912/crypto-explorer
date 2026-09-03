@@ -43,7 +43,7 @@ jobs:
         run: |
           pip install pip-audit bandit
           pip-audit -r backend/requirements.txt
-          bandit -r backend -x backend/security_smoke.py -ll -ii
+          bandit -r backend -x backend/security_smoke.py,backend/genealogy_smoke.py
       - run: python -m compileall -q backend
       - name: Import FastAPI application
         env:
@@ -51,6 +51,8 @@ jobs:
         run: cd backend && python -c "from api import app; assert app.title == 'Crypto Explorer API'"
       - name: Security regression smoke test
         run: python backend/security_smoke.py
+      - name: Concept genealogy regression smoke test
+        run: cd backend && python genealogy_smoke.py
 
   docker:
     name: Docker Compose

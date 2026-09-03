@@ -5,7 +5,7 @@ import {
   Network, Clock, GitMerge, BookOpen, 
   Search, Users, Building2, 
   FileText, Bookmark, PenTool,
-  Download
+  Download, Dice5
 } from 'lucide-react';
 import { GraphData } from '../services/paperService';
 import { ResearchView, WorkspaceSection } from '../types/research';
@@ -56,6 +56,7 @@ export default function Sidebar({ graphData, viewMode, readingCount, favoriteCou
             <NavItem icon={<Clock size={18} />} label="时间线" active={viewMode === 'timeline'} onClick={() => onViewModeChange('timeline')} />
             <NavItem icon={<GitMerge size={18} />} label="引文网络" active={viewMode === 'citations'} onClick={() => onViewModeChange('citations')} />
             <NavItem icon={<BookOpen size={18} />} label="阅读清单" badge={readingCount} active={viewMode === 'reading'} onClick={() => onViewModeChange('reading')} />
+            <NavItem icon={<Dice5 size={18} />} label="论文抽取" active={viewMode === 'draw'} onClick={() => onViewModeChange('draw')} />
           </div>
         </div>
 

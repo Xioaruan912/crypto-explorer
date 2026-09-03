@@ -15,6 +15,8 @@
 - **作者检索**：作者、机构、学术影响力和代表论文。
 - **会议 / 期刊检索**：支持 CRYPTO、ASIACRYPT、IEEE S&P、CCS、USENIX Security 等常用缩写。
 - **阅读清单 / 每周 TODO**：把论文排到周一至周日，支持阅读、笔记、复习、复现、自定义任务与独立完成状态。
+- **概念谱系 / 开山论文发现**：从现代关键词建立锚点，沿参考文献反向追溯祖先，并对常见密码学方向使用透明的历史术语映射，避免“标题没有现代关键词就找不到开山论文”。
+- **基础理论论文抽取**：先生成高质量基础论文池，再均匀随机抽一篇；最近 10 次优先避重，不设置稀有度、积分或概率等级。
 - **收藏 / 历史 / 仪表盘**：研究行为统一持久化并可回溯；默认进入仪表盘并直接展示本周阅读计划。
 - **Markdown 笔记**：网页编辑、本地 `.md` 导入、论文关联和 `.md` 导出。
 - **账户与安全**：内置单管理员登录、强制修改默认密码、HttpOnly 会话、CSRF 防护和登录锁定。
@@ -101,6 +103,8 @@ APP_PORT=3000
 LOG_LEVEL=INFO
 ENABLE_EPRINT_LOOKUP=false
 SEMANTIC_SCHOLAR_API_KEY=
+OPENALEX_API_KEY=
+OPENALEX_MAILTO=
 SESSION_TTL_HOURS=24
 COOKIE_SECURE=false
 ENABLE_API_DOCS=false
@@ -113,6 +117,8 @@ MAX_REQUEST_BYTES=6291456
 | `LOG_LEVEL` | `INFO` | 后端日志级别 |
 | `ENABLE_EPRINT_LOOKUP` | `false` | 是否额外匹配 IACR ePrint |
 | `SEMANTIC_SCHOLAR_API_KEY` | 空 | 可选；未配置时仍可通过 OpenAlex 容错 |
+| `OPENALEX_API_KEY` | 空 | 可选；频繁使用概念谱系时建议配置以提升 OpenAlex 配额 |
+| `OPENALEX_MAILTO` | 空 | 可选；OpenAlex polite pool 联系邮箱 |
 | `SESSION_TTL_HOURS` | `24` | 登录会话有效时长 |
 | `COOKIE_SECURE` | `false` | HTTPS 部署时应设置为 `true` |
 | `ENABLE_API_DOCS` | `false` | 是否开放 FastAPI `/docs` 和 OpenAPI 文档 |
@@ -132,11 +138,12 @@ Compose 使用命名卷 `crypto_explorer_data`，数据库位于容器内：
 - 每周阅读 TODO 与任务完成状态
 - 收藏
 - 搜索历史
+- 论文随机抽取历史
 - 用户资料
 - Markdown 论文笔记
 - 登录账号、密码哈希和会话（不会被备份导出）
 
-账户页支持导出 / 导入研究备份。备份格式只包含阅读清单、每周 TODO、收藏、搜索历史、个人资料和 Markdown 笔记，不包含密码哈希、Cookie 或服务器会话。
+账户页支持导出 / 导入研究备份。备份格式包含阅读清单、每周 TODO、收藏、搜索历史、论文抽取历史、个人资料和 Markdown 笔记，不包含密码哈希、Cookie 或服务器会话。概念谱系缓存属于可再生成的派生数据，不进入备份。
 
 数据库、`.env`、日志和备份文件默认被 `.gitignore` 排除，不应提交到 GitHub。
 

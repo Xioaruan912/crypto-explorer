@@ -1,5 +1,8 @@
 import logging
+import os
 import re
+import threading
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -60,10 +63,39 @@ class OpenAlexClient:
     def __init__(self) -> None:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "CryptoExplorer/1.0"})
+        self.api_key = os.getenv("OPENALEX_API_KEY", "").strip()
+        self.mailto = os.getenv("OPENALEX_MAILTO", "").strip()
+        self._request_lock = threading.Lock()
+        self._last_request_at = 0.0
 
     def _request(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         url = f"{OPENALEX_BASE_URL}{path}"
-        response = self.session.get(url, params=params, timeout=15)
+        request_params = dict(params)
+        if self.api_key:
+            request_params["api_key"] = self.api_key
+        if self.mailto:
+            request_params["mailto"] = self.mailto
+        response = None
+        for attempt in range(3):
+            with self._request_lock:
+                elapsed = time.monotonic() - self._last_request_at
+                if elapsed < 0.14:
+                    time.sleep(0.14 - elapsed)
+                response = self.session.get(url, params=request_params, timeout=15)
+                self._last_request_at = time.monotonic()
+            if response.status_code != 429:
+                break
+            retry_after = response.headers.get("retry-after")
+            try:
+                delay = float(retry_after) if retry_after else float(1 + attempt)
+            except ValueError:
+                delay = float(1 + attempt)
+            logger.warning("openalex rate limited path=%s retry_in=%.1fs attempt=%s", path, delay, attempt + 1)
+            if delay > 10:
+                break
+            time.sleep(min(delay, 4.0))
+        if response is None:
+            raise requests.RequestException("OpenAlex request did not return a response")
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
@@ -94,6 +126,11 @@ class OpenAlexClient:
             doi = doi.removeprefix("https://doi.org/")
 
         referenced_works = work.get("referenced_works") or []
+        referenced_work_ids = [
+            ref_id
+            for ref_id in (_work_id(value) for value in referenced_works)
+            if ref_id and ref_id.startswith("W")
+        ]
         paper_id = _work_id(work.get("id"))
         if not paper_id:
             raise ValueError("OpenAlex work is missing an ID")
@@ -108,6 +145,7 @@ class OpenAlexClient:
             "tldr": None,
             "citationCount": work.get("cited_by_count") or 0,
             "referenceCount": len(referenced_works),
+            "referencedWorkIds": referenced_work_ids,
             "url": primary_location.get("landing_page_url") or work.get("id"),
             "externalIds": {"DOI": doi} if doi else {},
             "openAccessPdf": {"url": best_oa_location.get("pdf_url")}
@@ -118,6 +156,40 @@ class OpenAlexClient:
             "workType": work.get("type"),
             "primaryTopic": primary_topic.get("display_name"),
         }
+
+    def get_work(self, work_id: str) -> Dict[str, Any]:
+        work_id = _validated_id(work_id, "W")
+        return self._normalize_work(self._request(f"/works/{work_id}", {}))
+
+    def get_works_by_ids(self, work_ids: List[str], batch_size: int = 100) -> List[Dict[str, Any]]:
+        """Fetch a bounded set of OpenAlex works in batches without user-controlled URLs."""
+        normalized: List[str] = []
+        seen = set()
+        for value in work_ids:
+            work_id = _validated_id(value, "W")
+            if work_id not in seen:
+                seen.add(work_id)
+                normalized.append(work_id)
+        if not normalized:
+            return []
+
+        results: List[Dict[str, Any]] = []
+        size = max(1, min(batch_size, 100))
+        for offset in range(0, len(normalized), size):
+            batch = normalized[offset:offset + size]
+            payload = self._request(
+                "/works",
+                {
+                    "filter": f"openalex_id:{'|'.join(batch)}",
+                    "per_page": len(batch),
+                },
+            )
+            results.extend(
+                self._normalize_work(work)
+                for work in (payload.get("results") or [])
+                if isinstance(work, dict)
+            )
+        return results
 
     def search_works(
         self,

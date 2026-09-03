@@ -76,6 +76,10 @@ def main() -> int:
 
             status, _ = request(opener, base, "/api/dashboard")
             assert status == 401
+            status, _ = request(opener, base, "/api/genealogy?query=test")
+            assert status == 401
+            status, _ = request(opener, base, "/api/paper-draw", "POST", {"query": "test"})
+            assert status == 401
             status, _ = request(opener, base, "/docs")
             assert status == 404
 
@@ -117,6 +121,8 @@ def main() -> int:
 
             status, _ = request(opener, base, "/api/dashboard")
             assert status == 200
+            status, draw_history = request(opener, base, "/api/paper-draw/history")
+            assert status == 200 and draw_history["items"] == []
             status, _ = request(opener, base, "/api/history", "DELETE", csrf=csrf)
             assert status == 403
 
