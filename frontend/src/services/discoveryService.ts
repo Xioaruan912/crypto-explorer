@@ -1,4 +1,5 @@
 import { Paper } from '../types/paper';
+import { authFetch } from './authService';
 import {
   DiscoveryAuthor,
   DiscoveryAuthorDetail,
@@ -92,7 +93,7 @@ function paramsToQuery(params: Record<string, string | number | boolean | undefi
 
 export const discoveryService = {
   async searchPapers(params: PaperSearchParams): Promise<Paper[]> {
-    const response = await fetch(`/api/discovery/papers?${paramsToQuery({
+    const response = await authFetch(`/api/discovery/papers?${paramsToQuery({
       query: params.query,
       from_year: params.fromYear,
       to_year: params.toYear,
@@ -108,7 +109,7 @@ export const discoveryService = {
   },
 
   async searchAuthors(query: string, sort: EntitySort = 'relevance'): Promise<DiscoveryAuthor[]> {
-    const response = await fetch(`/api/discovery/authors?${paramsToQuery({ query, sort, limit: 25 })}`, { cache: 'no-store' });
+    const response = await authFetch(`/api/discovery/authors?${paramsToQuery({ query, sort, limit: 25 })}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: BackendAuthor[] };
     return body.items
@@ -117,14 +118,14 @@ export const discoveryService = {
   },
 
   async getAuthor(id: string): Promise<DiscoveryAuthorDetail> {
-    const response = await fetch(`/api/discovery/authors/${encodeURIComponent(id)}?works_limit=15`, { cache: 'no-store' });
+    const response = await authFetch(`/api/discovery/authors/${encodeURIComponent(id)}?works_limit=15`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as BackendAuthor & { id: string; topWorks?: BackendWork[] };
     return { ...body, topWorks: (body.topWorks || []).map(mapWork) };
   },
 
   async searchVenues(query: string, sort: EntitySort = 'relevance'): Promise<DiscoveryVenue[]> {
-    const response = await fetch(`/api/discovery/venues?${paramsToQuery({ query, sort, limit: 25 })}`, { cache: 'no-store' });
+    const response = await authFetch(`/api/discovery/venues?${paramsToQuery({ query, sort, limit: 25 })}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: BackendVenue[] };
     return body.items
@@ -133,7 +134,7 @@ export const discoveryService = {
   },
 
   async getVenue(id: string): Promise<DiscoveryVenueDetail> {
-    const response = await fetch(`/api/discovery/venues/${encodeURIComponent(id)}?works_limit=15`, { cache: 'no-store' });
+    const response = await authFetch(`/api/discovery/venues/${encodeURIComponent(id)}?works_limit=15`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as BackendVenue & { id: string; topWorks?: BackendWork[] };
     return { ...body, topWorks: (body.topWorks || []).map(mapWork) };

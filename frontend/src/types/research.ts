@@ -4,7 +4,7 @@ export type ResearchView = 'graph' | 'timeline' | 'citations' | 'reading' | 'pap
 export type ReadingStatus = 'to_read' | 'reading' | 'done';
 export type ReadingTaskStatus = 'todo' | 'doing' | 'done';
 export type ReadingTaskType = 'read' | 'notes' | 'review' | 'reproduce' | 'custom';
-export type WorkspaceSection = 'help' | 'dashboard' | 'history' | 'favorites' | 'profile' | 'notes';
+export type WorkspaceSection = 'help' | 'dashboard' | 'history' | 'favorites' | 'profile' | 'notes' | 'account';
 
 export interface ReadingListItem {
   paper: Paper;
@@ -70,4 +70,20 @@ export interface ResearchTimeRange {
   fromYear?: number;
   toYear?: number;
   strategy: 'relevance' | 'foundational';
+}
+
+export interface AuthSession {
+  authenticated: boolean;
+  default_credentials_active?: boolean;
+  username?: string;
+  must_change_password?: boolean;
+  csrf_token?: string;
+  expires_at?: string;
+}
+
+export interface AccountInfo {
+  username: string;
+  must_change_password: boolean;
+  updated_at: string;
+  active_sessions: number;
 }

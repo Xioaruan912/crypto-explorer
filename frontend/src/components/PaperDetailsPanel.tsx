@@ -5,6 +5,7 @@ import { Bookmark, FileText, ExternalLink, CheckCircle2, BookOpenCheck, Download
 import { Paper } from '../types/paper';
 import { categoryColors } from '../constants/categories';
 import { researchService } from '../services/researchService';
+import { safeExternalUrl } from '../utils/url';
 
 const getCategoryZh = (cat: string) => {
   const map: Record<string, string> = {
@@ -69,9 +70,11 @@ export default function PaperDetailsPanel({
   }
 
   const categoryColor = categoryColors[paper.category] || categoryColors.foundation;
-  const eprintUrl = paper.eprint ? `https://eprint.iacr.org/${paper.eprint}` : undefined;
-  const pdfUrl = paper.pdfUrl || (paper.eprint ? `https://eprint.iacr.org/${paper.eprint}.pdf` : undefined);
-  const primaryUrl = pdfUrl || paper.semanticScholarUrl;
+  const eprintUrl = safeExternalUrl(paper.eprint ? `https://eprint.iacr.org/${paper.eprint}` : undefined);
+  const pdfUrl = safeExternalUrl(paper.pdfUrl || (paper.eprint ? `https://eprint.iacr.org/${paper.eprint}.pdf` : undefined));
+  const semanticScholarUrl = safeExternalUrl(paper.semanticScholarUrl);
+  const primaryUrl = pdfUrl || semanticScholarUrl;
+  const doiUrl = paper.doi ? safeExternalUrl(`https://doi.org/${encodeURIComponent(paper.doi)}`) : undefined;
 
   return (
     <aside className="w-[350px] bg-white border-l border-gray-200 h-full flex flex-col shrink-0 overflow-y-auto">
@@ -99,8 +102,8 @@ export default function PaperDetailsPanel({
             <FileText size={16} />
             {pdfUrl ? '查看 PDF' : '查看论文'}
           </a>
-          {paper.semanticScholarUrl && (
-            <a href={paper.semanticScholarUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-medium rounded-lg flex items-center gap-2 transition-colors text-sm" title="Semantic Scholar">
+          {semanticScholarUrl && (
+            <a href={semanticScholarUrl} target="_blank" rel="noreferrer" className="px-4 py-2 bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700 font-medium rounded-lg flex items-center gap-2 transition-colors text-sm" title="Semantic Scholar">
               <ExternalLink size={16} />
               来源
             </a>
@@ -159,16 +162,16 @@ export default function PaperDetailsPanel({
             </div>
             <div className="flex">
               <span className="w-24 text-gray-500">来源：</span>
-              {paper.semanticScholarUrl ? (
-                <a href={paper.semanticScholarUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#6D4AFF] hover:underline break-all">Semantic Scholar</a>
+              {semanticScholarUrl ? (
+                <a href={semanticScholarUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#6D4AFF] hover:underline break-all">Semantic Scholar</a>
               ) : (
                 <span className="flex-1 text-gray-400">暂无</span>
               )}
             </div>
             <div className="flex">
               <span className="w-24 text-gray-500">DOI：</span>
-              {paper.doi ? (
-                <a href={`https://doi.org/${paper.doi}`} target="_blank" rel="noreferrer" className="flex-1 break-all text-[#6D4AFF] hover:underline">{paper.doi}</a>
+              {paper.doi && doiUrl ? (
+                <a href={doiUrl} target="_blank" rel="noreferrer" className="flex-1 break-all text-[#6D4AFF] hover:underline">{paper.doi}</a>
               ) : (
                 <span className="flex-1 text-gray-400">暂无</span>
               )}

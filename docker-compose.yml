@@ -38,6 +38,10 @@ services:
       - CORS_ORIGINS=
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
       - RESEARCH_DB_PATH=/app/data/research.db
+      - SESSION_TTL_HOURS=${SESSION_TTL_HOURS:-24}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - ENABLE_API_DOCS=${ENABLE_API_DOCS:-false}
+      - MAX_REQUEST_BYTES=${MAX_REQUEST_BYTES:-6291456}
     volumes:
       - crypto_explorer_data:/app/data
     init: true

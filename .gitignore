@@ -14,6 +14,7 @@
 data/
 backend/data/
 backups/
+crypto-explorer-backup-*.json
 *.tar.gz
 *.bundle
 

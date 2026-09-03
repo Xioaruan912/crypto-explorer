@@ -12,13 +12,16 @@ import ReadingListView from '@/components/ReadingListView';
 import PaperDetailsPanel from '@/components/PaperDetailsPanel';
 import WorkspaceView from '@/components/WorkspaceView';
 import DiscoveryView from '@/components/DiscoveryView';
+import { ForcedPasswordChange, LoginScreen } from '@/components/AuthScreens';
 import { Network, BarChart3, Loader2, AlertCircle, Search, GitMerge, BookOpen } from 'lucide-react';
 import { paperService, GraphData } from '@/services/paperService';
 import { researchService } from '@/services/researchService';
-import { FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, WorkspaceSection } from '@/types/research';
+import { authService } from '@/services/authService';
+import { AuthSession, FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, WorkspaceSection } from '@/types/research';
 import { Paper } from '@/types/paper';
 
 export default function Home() {
+  const [auth, setAuth] = useState<AuthSession | null>(null);
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ResearchView>('graph');
   const [workspace, setWorkspace] = useState<WorkspaceSection | null>('dashboard');
@@ -34,9 +37,23 @@ export default function Home() {
   const [discoverySelectedPaper, setDiscoverySelectedPaper] = useState<Paper | null>(null);
 
   useEffect(() => {
+    let active = true;
+    authService.session()
+      .then((session) => { if (active) setAuth(session); })
+      .catch(() => { if (active) setAuth({ authenticated: false }); });
+    const handleExpired = () => setAuth({ authenticated: false });
+    window.addEventListener('crypto-auth-expired', handleExpired);
+    return () => {
+      active = false;
+      window.removeEventListener('crypto-auth-expired', handleExpired);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!auth?.authenticated || auth.must_change_password) return;
     researchService.listReading().then(setReadingList).catch((e) => console.error(e));
     researchService.listFavorites().then(setFavorites).catch((e) => console.error(e));
-  }, []);
+  }, [auth?.authenticated, auth?.must_change_password]);
 
   const switchResearchView = (mode: ResearchView) => {
     setWorkspace(null);
@@ -166,6 +183,12 @@ export default function Home() {
   const discoveryMode = viewMode === 'papers' || viewMode === 'authors' || viewMode === 'venues'
     ? viewMode
     : null;
+
+  if (auth === null) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#F8F9FC] text-gray-400"><Loader2 className="mr-2 animate-spin" />正在检查登录状态...</div>;
+  }
+  if (!auth.authenticated) return <LoginScreen defaultCredentialsActive={Boolean(auth.default_credentials_active)} onAuthenticated={setAuth} />;
+  if (auth.must_change_password) return <ForcedPasswordChange session={auth} onChanged={setAuth} />;
 
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FC] text-[#171717] overflow-hidden">

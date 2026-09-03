@@ -43,6 +43,8 @@ jobs:
         env:
           RESEARCH_DB_PATH: /tmp/crypto-explorer-ci.db
         run: cd backend && python -c "from api import app; assert app.title == 'Crypto Explorer API'"
+      - name: Security regression smoke test
+        run: python backend/security_smoke.py
 
   docker:
     name: Docker Compose

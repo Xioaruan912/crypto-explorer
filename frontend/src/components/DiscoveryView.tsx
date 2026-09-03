@@ -24,6 +24,7 @@ import {
   PaperSort,
 } from '../types/discovery';
 import { Paper } from '../types/paper';
+import { safeExternalUrl } from '../utils/url';
 
 interface DiscoveryViewProps {
   mode: DiscoveryMode;
@@ -338,6 +339,7 @@ function PaperResults({
 }
 
 function PaperCard({ paper, isFavorite, inReading, onSelect, onToggleFavorite, onAddReading }: { paper: Paper; isFavorite: boolean; inReading: boolean; onSelect: () => void; onToggleFavorite: () => void; onAddReading: () => void }) {
+  const sourceUrl = safeExternalUrl(paper.semanticScholarUrl);
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md">
       <div className="flex gap-4">
@@ -352,7 +354,7 @@ function PaperCard({ paper, isFavorite, inReading, onSelect, onToggleFavorite, o
         <div className="flex shrink-0 items-start gap-2">
           <button type="button" onClick={onToggleFavorite} title={isFavorite ? '取消收藏' : '收藏'} className={`rounded-lg border p-2 transition ${isFavorite ? 'border-[#B9A8FF] bg-[#F2EFFF] text-[#6D4AFF]' : 'border-gray-200 text-gray-400 hover:text-[#6D4AFF]'}`}><Bookmark size={17} fill={isFavorite ? 'currentColor' : 'none'} /></button>
           <button type="button" disabled={inReading} onClick={onAddReading} title={inReading ? '已在阅读清单' : '加入阅读清单'} className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-[#6D4AFF] disabled:cursor-default disabled:bg-gray-50 disabled:text-emerald-500"><BookOpenCheck size={17} /></button>
-          {paper.semanticScholarUrl && <a href={paper.semanticScholarUrl} target="_blank" rel="noreferrer" title="打开来源" className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-gray-700"><ExternalLink size={17} /></a>}
+          {sourceUrl && <a href={sourceUrl} target="_blank" rel="noreferrer" title="打开来源" className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-gray-700"><ExternalLink size={17} /></a>}
         </div>
       </div>
       {paper.abstractZh && <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-600">{paper.abstractZh}</p>}
@@ -363,11 +365,12 @@ function PaperCard({ paper, isFavorite, inReading, onSelect, onToggleFavorite, o
 function AuthorDetailPanel({ detail, loading, ...paperProps }: { detail: DiscoveryAuthorDetail | null; loading: boolean } & SharedPaperActions) {
   if (loading) return <LoadingCard />;
   if (!detail) return <EmptyCard label="点击左侧作者查看学术概况与代表论文" />;
+  const orcidUrl = safeExternalUrl(detail.orcid);
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div><h2 className="text-xl font-bold text-gray-900">{detail.name}</h2><p className="mt-1 text-sm text-gray-500">{detail.institutions.join(' · ') || '机构信息暂无'}</p></div>
       <div className="grid grid-cols-2 gap-3"><Metric label="论文数量" value={detail.worksCount} /><Metric label="总被引次数" value={detail.citedByCount} /></div>
-      {detail.orcid && <a href={detail.orcid} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">ORCID <ExternalLink size={13} /></a>}
+      {orcidUrl && <a href={orcidUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">ORCID <ExternalLink size={13} /></a>}
       <div><h3 className="mb-3 font-semibold text-gray-900">高影响力代表论文</h3><div className="space-y-3">{detail.topWorks.map((paper) => <CompactPaper key={paper.id} paper={paper} {...paperProps} />)}</div></div>
     </div>
   );
@@ -376,12 +379,13 @@ function AuthorDetailPanel({ detail, loading, ...paperProps }: { detail: Discove
 function VenueDetailPanel({ detail, loading, ...paperProps }: { detail: DiscoveryVenueDetail | null; loading: boolean } & SharedPaperActions) {
   if (loading) return <LoadingCard />;
   if (!detail) return <EmptyCard label="点击左侧会议 / 期刊查看来源信息与代表论文" />;
+  const homepageUrl = safeExternalUrl(detail.homepageUrl);
   return (
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div><h2 className="text-xl font-bold text-gray-900">{detail.name}</h2><p className="mt-1 text-sm text-gray-500">{detail.hostOrganization || detail.issn || '出版机构信息暂无'}</p></div>
       <div className="grid grid-cols-2 gap-3"><Metric label="收录论文" value={detail.worksCount} /><Metric label="总被引次数" value={detail.citedByCount} /></div>
       <div className="flex flex-wrap gap-2 text-xs">{detail.type && <Badge>{detail.type}</Badge>}{detail.isOpenAccess && <Badge>Open Access</Badge>}{detail.isInDoaj && <Badge>DOAJ</Badge>}</div>
-      {detail.homepageUrl && <a href={detail.homepageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">访问主页 <ExternalLink size={13} /></a>}
+      {homepageUrl && <a href={homepageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">访问主页 <ExternalLink size={13} /></a>}
       <div><h3 className="mb-3 font-semibold text-gray-900">高影响力代表论文</h3><div className="space-y-3">{detail.topWorks.map((paper) => <CompactPaper key={paper.id} paper={paper} {...paperProps} />)}</div></div>
     </div>
   );

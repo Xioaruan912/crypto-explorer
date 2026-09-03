@@ -62,7 +62,7 @@ export default function AppHeader({ onSearch, activeWorkspace, onWorkspaceChange
           <Bookmark size={18} />
           <span>我的收藏</span>
         </button>
-        <button onClick={() => onWorkspaceChange?.('profile')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${activeWorkspace === 'profile' ? 'bg-[#F2EFFF] text-[#6D4AFF] ring-1 ring-[#D8CEFF]' : 'bg-gray-100 hover:bg-gray-200'}`} title="个人中心">
+        <button onClick={() => onWorkspaceChange?.('account')} className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${activeWorkspace === 'account' ? 'bg-[#F2EFFF] text-[#6D4AFF] ring-1 ring-[#D8CEFF]' : 'bg-gray-100 hover:bg-gray-200'}`} title="账户管理">
           <User size={18} />
         </button>
       </div>

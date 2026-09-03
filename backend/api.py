@@ -3,13 +3,17 @@ import os
 import time
 import uuid
 import json
+import hmac
+import sqlite3
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import requests
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Path as ApiPath, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Use relative or local imports since the backend is now at the root of 'backend/'
@@ -24,7 +28,19 @@ from core.research_store import ResearchStore
 configure_logging()
 logger = logging.getLogger("crypto_explorer.api")
 
-app = FastAPI(title="Crypto Explorer API", version="1.0.0")
+enable_api_docs = os.getenv("ENABLE_API_DOCS", "false").lower() == "true"
+app = FastAPI(
+    title="Crypto Explorer API",
+    version="1.0.0",
+    docs_url="/docs" if enable_api_docs else None,
+    redoc_url="/redoc" if enable_api_docs else None,
+    openapi_url="/openapi.json" if enable_api_docs else None,
+)
+
+SESSION_COOKIE = "crypto_session"
+SESSION_TTL_HOURS = int(os.getenv("SESSION_TTL_HOURS", "24"))
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+MAX_REQUEST_BYTES = int(os.getenv("MAX_REQUEST_BYTES", str(6 * 1024 * 1024)))
 
 allowed_origins = [
     origin.strip()
@@ -37,8 +53,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
 )
 
 s2_client = SemanticScholarClient(api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"))
@@ -81,6 +97,21 @@ class NoteUpsert(BaseModel):
     content: str = Field(default="", max_length=500000)
 
 
+class LoginPayload(BaseModel):
+    username: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class CredentialUpdate(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    username: str | None = Field(default=None, min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_.-]+$")
+    new_password: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+class BackupImport(BaseModel):
+    backup: dict[str, Any]
+
+
 class ReadingTaskCreate(BaseModel):
     paper_id: str = Field(min_length=1, max_length=300)
     scheduled_date: str = Field(min_length=10, max_length=10)
@@ -98,6 +129,41 @@ class ReadingTaskUpdate(BaseModel):
 
 READING_TASK_TYPES = {"read", "notes", "review", "reproduce", "custom"}
 READING_TASK_STATUSES = {"todo", "doing", "done"}
+
+
+def _session_payload(request: Request) -> dict[str, Any] | None:
+    token = request.cookies.get(SESSION_COOKIE, "")
+    return store.get_session(token)
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=SESSION_TTL_HOURS * 3600,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="strict",
+        path="/",
+    )
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(key=SESSION_COOKIE, path="/", secure=COOKIE_SECURE, samesite="strict")
+
+
+def _apply_security_headers(response: Response, path: str) -> Response:
+    response.headers["x-content-type-options"] = "nosniff"
+    response.headers["x-frame-options"] = "DENY"
+    response.headers["referrer-policy"] = "no-referrer"
+    response.headers["permissions-policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["content-security-policy"] = (
+        "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
+    if path.startswith("/api/"):
+        response.headers["cache-control"] = "no-store"
+    return response
 
 
 def _validate_iso_date(value: str) -> str:
@@ -255,6 +321,51 @@ def _discovery_provider_error(operation: str, error: Exception) -> HTTPException
 async def request_logging(request: Request, call_next):
     request_id = request.headers.get("x-request-id") or str(uuid.uuid4())[:8]
     started = time.perf_counter()
+
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BYTES:
+                return _apply_security_headers(
+                    JSONResponse(status_code=413, content={"detail": "request body too large"}),
+                    request.url.path,
+                )
+        except ValueError:
+            return _apply_security_headers(
+                JSONResponse(status_code=400, content={"detail": "invalid content length"}),
+                request.url.path,
+            )
+
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        body = await request.body()
+        if len(body) > MAX_REQUEST_BYTES:
+            return _apply_security_headers(
+                JSONResponse(status_code=413, content={"detail": "request body too large"}),
+                request.url.path,
+            )
+
+    path = request.url.path
+    public_paths = {"/", "/health", "/api/auth/login", "/api/auth/session"}
+    if path.startswith("/api/") and path not in public_paths:
+        session = _session_payload(request)
+        if session is None:
+            return _apply_security_headers(
+                JSONResponse(status_code=401, content={"detail": "authentication required"}),
+                path,
+            )
+        if session.get("must_change_password") and path not in {"/api/auth/credentials", "/api/auth/logout"}:
+            return _apply_security_headers(
+                JSONResponse(status_code=428, content={"detail": "password change required"}),
+                path,
+            )
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            csrf = request.headers.get("x-csrf-token", "")
+            if not csrf or not hmac.compare_digest(csrf, str(session.get("csrf_token", ""))):
+                return _apply_security_headers(
+                    JSONResponse(status_code=403, content={"detail": "invalid csrf token"}),
+                    path,
+                )
+
     try:
         response = await call_next(request)
     except Exception:
@@ -270,6 +381,7 @@ async def request_logging(request: Request, call_next):
 
     elapsed_ms = (time.perf_counter() - started) * 1000
     response.headers["x-request-id"] = request_id
+    _apply_security_headers(response, path)
     logger.info(
         "request request_id=%s method=%s path=%s status=%s duration_ms=%.1f",
         request_id,
@@ -279,6 +391,99 @@ async def request_logging(request: Request, call_next):
         elapsed_ms,
     )
     return response
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginPayload, response: Response):
+    status, user = store.authenticate(payload.username.strip(), payload.password)
+    if status == "locked":
+        raise HTTPException(status_code=429, detail="too many login attempts; try again later")
+    if status != "ok" or user is None:
+        raise HTTPException(status_code=401, detail="invalid username or password")
+    store.delete_all_sessions()
+    token, session = store.create_session(SESSION_TTL_HOURS)
+    _set_session_cookie(response, token)
+    logger.info("account login username=%s", user["username"])
+    return {
+        "authenticated": True,
+        "username": user["username"],
+        "must_change_password": user["must_change_password"],
+        "csrf_token": session["csrf_token"],
+        "expires_at": session["expires_at"],
+    }
+
+
+@app.get("/api/auth/session")
+def auth_session(request: Request):
+    session = _session_payload(request)
+    if session is None:
+        account = store.get_account()
+        return {
+            "authenticated": False,
+            "default_credentials_active": bool(account["must_change_password"]),
+        }
+    return {
+        "authenticated": True,
+        "username": session["username"],
+        "must_change_password": session["must_change_password"],
+        "default_credentials_active": False,
+        "csrf_token": session["csrf_token"],
+        "expires_at": session["expires_at"],
+    }
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    store.delete_session(request.cookies.get(SESSION_COOKIE, ""))
+    _clear_session_cookie(response)
+    return {"status": "logged_out"}
+
+
+@app.get("/api/auth/account")
+def get_account():
+    return store.get_account()
+
+
+@app.patch("/api/auth/credentials")
+def update_credentials(payload: CredentialUpdate, request: Request, response: Response):
+    username = payload.username.strip() if payload.username is not None else None
+    if payload.new_password and payload.new_password == payload.current_password:
+        raise HTTPException(status_code=422, detail="new password must be different")
+    account = store.update_credentials(payload.current_password, username, payload.new_password)
+    if account is None:
+        raise HTTPException(status_code=401, detail="current password is incorrect")
+    store.delete_all_sessions()
+    token, session = store.create_session(SESSION_TTL_HOURS)
+    _set_session_cookie(response, token)
+    logger.info("account credentials updated username=%s", account["username"])
+    return {
+        **account,
+        "csrf_token": session["csrf_token"],
+        "expires_at": session["expires_at"],
+    }
+
+
+@app.get("/api/backup/export")
+def export_backup():
+    backup = store.export_backup()
+    return JSONResponse(
+        content=backup,
+        headers={"Content-Disposition": f'attachment; filename="crypto-explorer-backup-{date.today().isoformat()}.json"'},
+    )
+
+
+@app.post("/api/backup/import")
+def import_backup(payload: BackupImport):
+    serialized_size = len(json.dumps(payload.backup, ensure_ascii=False).encode("utf-8"))
+    if serialized_size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="backup file too large")
+    try:
+        counts = store.import_backup(payload.backup)
+    except (ValueError, json.JSONDecodeError, sqlite3.IntegrityError) as error:
+        logger.warning("backup import rejected error=%s", type(error).__name__)
+        raise HTTPException(status_code=422, detail="invalid backup file") from error
+    logger.info("backup import completed counts=%s", counts)
+    return {"status": "restored", "counts": counts}
 
 @app.get("/")
 def read_root():
@@ -526,7 +731,10 @@ def discover_authors(
 
 
 @app.get("/api/discovery/authors/{author_id}")
-def author_detail(author_id: str, works_limit: int = Query(default=12, ge=1, le=30)):
+def author_detail(
+    author_id: str = ApiPath(pattern=r"^A\d+$"),
+    works_limit: int = Query(default=12, ge=1, le=30),
+):
     try:
         return openalex_client.get_author(author_id, works_limit=works_limit)
     except Exception as error:
@@ -550,7 +758,10 @@ def discover_venues(
 
 
 @app.get("/api/discovery/venues/{source_id}")
-def venue_detail(source_id: str, works_limit: int = Query(default=12, ge=1, le=30)):
+def venue_detail(
+    source_id: str = ApiPath(pattern=r"^S\d+$"),
+    works_limit: int = Query(default=12, ge=1, le=30),
+):
     try:
         return openalex_client.get_source(source_id, works_limit=works_limit)
     except Exception as error:
@@ -627,7 +838,7 @@ def search_topic(
                     detail="Research providers are temporarily unavailable. Please try again later.",
                 ) from fallback_error
         logger.exception("search provider http error query=%r", normalized_query)
-        raise HTTPException(status_code=502, detail=f"Research provider error: {e}") from e
+        raise HTTPException(status_code=502, detail="Research provider request failed") from e
     except requests.RequestException as e:
         logger.warning("semantic scholar network error; trying openalex query=%r error=%s", normalized_query, e)
         try:
@@ -643,4 +854,4 @@ def search_topic(
             ) from fallback_error
     except Exception as e:
         logger.exception("search provider failed query=%r", normalized_query)
-        raise HTTPException(status_code=502, detail=f"Research provider error: {e}") from e
+        raise HTTPException(status_code=502, detail="Research provider request failed") from e

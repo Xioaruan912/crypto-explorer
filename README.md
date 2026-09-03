@@ -17,6 +17,8 @@
 - **阅读清单 / 每周 TODO**：把论文排到周一至周日，支持阅读、笔记、复习、复现、自定义任务与独立完成状态。
 - **收藏 / 历史 / 仪表盘**：研究行为统一持久化并可回溯；默认进入仪表盘并直接展示本周阅读计划。
 - **Markdown 笔记**：网页编辑、本地 `.md` 导入、论文关联和 `.md` 导出。
+- **账户与安全**：内置单管理员登录、强制修改默认密码、HttpOnly 会话、CSRF 防护和登录锁定。
+- **备份 / 恢复**：账户界面可导出、导入完整研究数据备份；登录凭据与会话不会进入备份。
 - **SQLite 持久化**：阅读清单、收藏、搜索历史、个人资料和笔记都保存在本地数据库。
 
 ## 技术栈
@@ -61,6 +63,15 @@ docker compose up -d --build --wait
 http://localhost:3000
 ```
 
+首次初始化登录：
+
+```text
+用户名：admin
+密码：123456
+```
+
+首次登录后系统会强制修改默认密码；在完成改密前，其他研究 API 不可用。
+
 查看状态：
 
 ```bash
@@ -90,6 +101,10 @@ APP_PORT=3000
 LOG_LEVEL=INFO
 ENABLE_EPRINT_LOOKUP=false
 SEMANTIC_SCHOLAR_API_KEY=
+SESSION_TTL_HOURS=24
+COOKIE_SECURE=false
+ENABLE_API_DOCS=false
+MAX_REQUEST_BYTES=6291456
 ```
 
 | 变量 | 默认值 | 说明 |
@@ -98,6 +113,10 @@ SEMANTIC_SCHOLAR_API_KEY=
 | `LOG_LEVEL` | `INFO` | 后端日志级别 |
 | `ENABLE_EPRINT_LOOKUP` | `false` | 是否额外匹配 IACR ePrint |
 | `SEMANTIC_SCHOLAR_API_KEY` | 空 | 可选；未配置时仍可通过 OpenAlex 容错 |
+| `SESSION_TTL_HOURS` | `24` | 登录会话有效时长 |
+| `COOKIE_SECURE` | `false` | HTTPS 部署时应设置为 `true` |
+| `ENABLE_API_DOCS` | `false` | 是否开放 FastAPI `/docs` 和 OpenAPI 文档 |
+| `MAX_REQUEST_BYTES` | `6291456` | 单次请求体最大字节数 |
 
 ## 数据持久化
 
@@ -115,6 +134,9 @@ Compose 使用命名卷 `crypto_explorer_data`，数据库位于容器内：
 - 搜索历史
 - 用户资料
 - Markdown 论文笔记
+- 登录账号、密码哈希和会话（不会被备份导出）
+
+账户页支持导出 / 导入研究备份。备份格式只包含阅读清单、每周 TODO、收藏、搜索历史、个人资料和 Markdown 笔记，不包含密码哈希、Cookie 或服务器会话。
 
 数据库、`.env`、日志和备份文件默认被 `.gitignore` 排除，不应提交到 GitHub。
 
@@ -177,7 +199,8 @@ GitHub Actions 会在 `main` push 和 Pull Request 上执行：
 
 1. Frontend `npm ci` / lint / production build
 2. Backend dependency install / Python compile / FastAPI import smoke test
-3. Docker Compose config / image build
+3. Backend authentication / CSRF / session / backup security regression smoke test
+4. Docker Compose config / image build
 
 ## 安全
 
@@ -185,6 +208,12 @@ GitHub Actions 会在 `main` push 和 Pull Request 上执行：
 - 不要提交 SQLite 数据库和阅读笔记备份。
 - 不要在 Issue 中公开 Token、密码或 API key。
 - Semantic Scholar API key 应只通过运行环境注入。
+- 默认账号只用于首次初始化。首次登录后必须立即更换密码。
+- 生产环境若通过 HTTPS 访问，请把 `COOKIE_SECURE=true`。
+- 生产环境默认关闭 FastAPI API 文档。
+- 所有研究 API 都要求登录；POST / PUT / PATCH / DELETE 还要求会话绑定 CSRF token。
+- 连续 5 次登录失败后会锁定 15 分钟。
+- 外部论文 / 作者 / 会议链接在前端只允许 `http` / `https` 协议。
 
 安全问题请参阅 [SECURITY.md](SECURITY.md)。
 

@@ -1,6 +1,5 @@
 import { Paper } from '../types/paper';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import { authFetch } from './authService';
 
 export interface GraphData {
   papers: Paper[];
@@ -62,7 +61,7 @@ export const paperService = {
     if (options.fromYear) params.set('from_year', String(options.fromYear));
     if (options.toYear) params.set('to_year', String(options.toYear));
     if (options.strategy) params.set('strategy', options.strategy);
-    const response = await fetch(`${API_URL}/api/search?${params.toString()}`);
+    const response = await authFetch(`/api/search?${params.toString()}`, { cache: 'no-store' });
     if (!response.ok) {
       let detail = '搜索失败，请稍后重试';
       try {

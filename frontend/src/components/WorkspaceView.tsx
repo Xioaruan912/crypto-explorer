@@ -15,6 +15,9 @@ import {
   LayoutDashboard,
   Loader2,
   Download,
+  DatabaseBackup,
+  KeyRound,
+  LogOut,
   PenTool,
   Save,
   Search,
@@ -23,7 +26,9 @@ import {
   User,
 } from 'lucide-react';
 import { researchService } from '@/services/researchService';
+import { authService } from '@/services/authService';
 import {
+  AccountInfo,
   DashboardData,
   FavoriteItem,
   NoteItem,
@@ -51,6 +56,7 @@ const sectionMeta: Record<WorkspaceSection, { title: string; subtitle: string; i
   favorites: { title: '我的收藏', subtitle: '集中管理你标记的重要论文', icon: <Bookmark size={20} /> },
   profile: { title: '个人中心', subtitle: '维护研究者资料与研究方向', icon: <User size={20} /> },
   notes: { title: 'Markdown 笔记', subtitle: '集中管理与论文关联的本地 Markdown 阅读笔记', icon: <PenTool size={20} /> },
+  account: { title: '账户管理', subtitle: '修改登录凭据、管理会话并导入/导出研究数据备份', icon: <User size={20} /> },
 };
 
 export default function WorkspaceView({ section, favorites, onRunSearch, onSelectFavorite, onRemoveFavorite, onOpenReadingList, onBack }: WorkspaceViewProps) {
@@ -71,6 +77,7 @@ export default function WorkspaceView({ section, favorites, onRunSearch, onSelec
       {section === 'favorites' && <FavoritesView favorites={favorites} onSelect={onSelectFavorite} onRemove={onRemoveFavorite} />}
       {section === 'profile' && <ProfileView />}
       {section === 'notes' && <NotesView />}
+      {section === 'account' && <AccountView />}
     </div>
   );
 }
@@ -281,6 +288,93 @@ function ProfileView() {
     <div className="mt-6 flex items-center gap-3"><button disabled={saving} onClick={async () => { setSaving(true); setSaved(false); try { const updated = await researchService.updateProfile(profile); setProfile(updated); setSaved(true); } catch (e) { setError(e instanceof Error ? e.message : '保存失败'); } finally { setSaving(false); } }} className="rounded-lg bg-[#6D4AFF] px-5 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-50">{saving ? '保存中...' : '保存资料'}</button>{saved && <span className="flex items-center gap-1 text-sm text-green-600"><CheckCircle2 size={15} />已保存</span>}</div>
   </div>;
 }
+
+function AccountView() {
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    authService.account()
+      .then((data) => { if (active) { setAccount(data); setUsername(data.username); } })
+      .catch((e) => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, []);
+
+  if (!account && !error) return <Loading />;
+
+  const saveCredentials = async () => {
+    if (newPassword && newPassword !== confirmPassword) return setError('两次输入的新密码不一致');
+    if (newPassword && newPassword.length < 8) return setError('新密码至少 8 位');
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const updated = await authService.updateCredentials({
+        current_password: currentPassword,
+        username: username.trim() || undefined,
+        new_password: newPassword || undefined,
+      });
+      setAccount(updated);
+      setUsername(updated.username);
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+      setMessage('账户凭据已更新，会话已安全轮换。');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    } finally { setBusy(false); }
+  };
+
+  const importBackup = async (file: File) => {
+    if (!window.confirm('导入会替换当前阅读清单、TODO、收藏、历史、个人资料和笔记。登录账号与密码不会被覆盖。确定继续吗？')) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await authService.importBackup(file);
+      setMessage('备份恢复完成，页面即将刷新。');
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '导入失败');
+    } finally { setBusy(false); }
+  };
+
+  return <div className="space-y-5">
+    {error && <ErrorBox text={error} />}
+    {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div>}
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#F2EFFF] text-[#6D4AFF]"><KeyRound size={19} /></div><div><h3 className="font-semibold text-gray-900">登录凭据</h3><p className="text-xs text-gray-400">密码使用 scrypt 哈希保存，不存储明文。</p></div></div>
+        <div className="space-y-4">
+          <Field label="用户名" value={username} onChange={setUsername} />
+          <PasswordInput label="当前密码（修改时必填）" value={currentPassword} onChange={setCurrentPassword} />
+          <PasswordInput label="新密码（留空则不修改，至少 8 位）" value={newPassword} onChange={setNewPassword} />
+          <PasswordInput label="确认新密码" value={confirmPassword} onChange={setConfirmPassword} />
+          <button disabled={busy || !currentPassword} onClick={saveCredentials} className="rounded-lg bg-[#6D4AFF] px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:opacity-40">保存账户设置</button>
+        </div>
+        {account && <div className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-400">当前活跃会话：{account.active_sessions} · 凭据更新于 {formatTime(account.updated_at)}</div>}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-6">
+        <div className="mb-5 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><DatabaseBackup size={19} /></div><div><h3 className="font-semibold text-gray-900">数据备份与恢复</h3><p className="text-xs text-gray-400">备份不包含密码哈希、Cookie 或会话 token。</p></div></div>
+        <div className="space-y-3">
+          <button disabled={busy} onClick={() => authService.downloadBackup().catch((e) => setError(e.message))} className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"><Download size={16} />导出完整研究备份</button>
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[#B9A8FF] bg-[#FAF9FF] px-4 py-3 text-sm font-medium text-[#6D4AFF] hover:bg-[#F4F1FF]"><Upload size={16} />导入备份 JSON<input type="file" accept="application/json,.json" className="hidden" disabled={busy} onChange={(e) => { const file = e.target.files?.[0]; if (file) void importBackup(file); e.currentTarget.value = ''; }} /></label>
+        </div>
+        <div className="mt-4 rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-700">导入前会严格校验格式、数据行数、论文 JSON 和数据库约束；恢复过程使用 SQLite 事务，失败会整体回滚。</div>
+      </div>
+    </div>
+
+    <div className="rounded-xl border border-red-100 bg-white p-6">
+      <div className="mb-3 flex items-center gap-2 font-semibold text-gray-900"><LogOut size={18} className="text-red-500" />会话</div>
+      <p className="mb-4 text-sm text-gray-500">退出会立即删除当前服务器会话 Cookie。</p>
+      <button onClick={async () => { await authService.logout(); window.location.reload(); }} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">退出登录</button>
+    </div>
+  </div>;
+}
+
+function PasswordInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <div><label className="mb-2 block text-sm font-medium text-gray-700">{label}</label><input type="password" autoComplete="new-password" value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6D4AFF]" /></div>; }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <div><label className="mb-2 block text-sm font-medium text-gray-700">{label}</label><input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#6D4AFF]" /></div>; }
 function Loading() { return <div className="flex h-64 items-center justify-center text-gray-400"><Loader2 size={24} className="mr-2 animate-spin" />正在加载...</div>; }

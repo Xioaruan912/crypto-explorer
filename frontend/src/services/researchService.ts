@@ -1,4 +1,5 @@
 import { Paper } from '../types/paper';
+import { authFetch } from './authService';
 import {
   DashboardData,
   FavoriteItem,
@@ -23,14 +24,14 @@ async function parseError(response: Response): Promise<string> {
 
 export const researchService = {
   async listReading(): Promise<ReadingListItem[]> {
-    const response = await fetch('/api/reading-list', { cache: 'no-store' });
+    const response = await authFetch('/api/reading-list', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: ReadingListItem[] };
     return body.items;
   },
 
   async addReading(paper: Paper): Promise<ReadingListItem> {
-    const response = await fetch('/api/reading-list', {
+    const response = await authFetch('/api/reading-list', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ paper, status: 'to_read', priority: 2, note: '' }),
@@ -43,7 +44,7 @@ export const researchService = {
     paperId: string,
     patch: Partial<{ status: ReadingStatus; priority: 1 | 2 | 3; note: string }>,
   ): Promise<ReadingListItem> {
-    const response = await fetch(`/api/reading-list/${encodeURIComponent(paperId)}`, {
+    const response = await authFetch(`/api/reading-list/${encodeURIComponent(paperId)}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
@@ -53,13 +54,13 @@ export const researchService = {
   },
 
   async removeReading(paperId: string): Promise<void> {
-    const response = await fetch(`/api/reading-list/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    const response = await authFetch(`/api/reading-list/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 
   async listReadingTasks(fromDate: string, toDate: string): Promise<ReadingTask[]> {
     const params = new URLSearchParams({ from_date: fromDate, to_date: toDate });
-    const response = await fetch(`/api/reading-tasks?${params.toString()}`, { cache: 'no-store' });
+    const response = await authFetch(`/api/reading-tasks?${params.toString()}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: ReadingTask[] };
     return body.items;
@@ -71,7 +72,7 @@ export const researchService = {
     taskType: ReadingTaskType;
     taskText: string;
   }): Promise<ReadingTask> {
-    const response = await fetch('/api/reading-tasks', {
+    const response = await authFetch('/api/reading-tasks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -95,7 +96,7 @@ export const researchService = {
       status: ReadingTaskStatus;
     }>,
   ): Promise<ReadingTask> {
-    const response = await fetch(`/api/reading-tasks/${taskId}`, {
+    const response = await authFetch(`/api/reading-tasks/${taskId}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
@@ -105,19 +106,19 @@ export const researchService = {
   },
 
   async removeReadingTask(taskId: number): Promise<void> {
-    const response = await fetch(`/api/reading-tasks/${taskId}`, { method: 'DELETE' });
+    const response = await authFetch(`/api/reading-tasks/${taskId}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 
   async listFavorites(): Promise<FavoriteItem[]> {
-    const response = await fetch('/api/favorites', { cache: 'no-store' });
+    const response = await authFetch('/api/favorites', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: FavoriteItem[] };
     return body.items;
   },
 
   async addFavorite(paper: Paper): Promise<FavoriteItem> {
-    const response = await fetch('/api/favorites', {
+    const response = await authFetch('/api/favorites', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ paper }),
@@ -127,41 +128,41 @@ export const researchService = {
   },
 
   async removeFavorite(paperId: string): Promise<void> {
-    const response = await fetch(`/api/favorites/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    const response = await authFetch(`/api/favorites/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 
   async listHistory(): Promise<SearchHistoryItem[]> {
-    const response = await fetch('/api/history', { cache: 'no-store' });
+    const response = await authFetch('/api/history', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: SearchHistoryItem[] };
     return body.items;
   },
 
   async removeHistory(id: number): Promise<void> {
-    const response = await fetch(`/api/history/${id}`, { method: 'DELETE' });
+    const response = await authFetch(`/api/history/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 
   async clearHistory(): Promise<void> {
-    const response = await fetch('/api/history', { method: 'DELETE' });
+    const response = await authFetch('/api/history', { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 
   async getDashboard(): Promise<DashboardData> {
-    const response = await fetch('/api/dashboard', { cache: 'no-store' });
+    const response = await authFetch('/api/dashboard', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     return response.json();
   },
 
   async getProfile(): Promise<UserProfile> {
-    const response = await fetch('/api/profile', { cache: 'no-store' });
+    const response = await authFetch('/api/profile', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     return response.json();
   },
 
   async updateProfile(patch: Partial<Omit<UserProfile, 'id' | 'updated_at'>>): Promise<UserProfile> {
-    const response = await fetch('/api/profile', {
+    const response = await authFetch('/api/profile', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(patch),
@@ -171,21 +172,21 @@ export const researchService = {
   },
 
   async listNotes(): Promise<NoteItem[]> {
-    const response = await fetch('/api/notes', { cache: 'no-store' });
+    const response = await authFetch('/api/notes', { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as { items: NoteItem[] };
     return body.items;
   },
 
   async getNote(paperId: string): Promise<NoteItem | null> {
-    const response = await fetch(`/api/notes/${encodeURIComponent(paperId)}`, { cache: 'no-store' });
+    const response = await authFetch(`/api/notes/${encodeURIComponent(paperId)}`, { cache: 'no-store' });
     if (response.status === 404) return null;
     if (!response.ok) throw new Error(await parseError(response));
     return response.json();
   },
 
   async saveNote(paper: Paper, title: string, content: string): Promise<NoteItem> {
-    const response = await fetch(`/api/notes/${encodeURIComponent(paper.id)}`, {
+    const response = await authFetch(`/api/notes/${encodeURIComponent(paper.id)}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ paper, title, content }),
@@ -195,7 +196,7 @@ export const researchService = {
   },
 
   async removeNote(paperId: string): Promise<void> {
-    const response = await fetch(`/api/notes/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    const response = await authFetch(`/api/notes/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 };

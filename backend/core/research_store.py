@@ -1,6 +1,10 @@
 import json
+import hashlib
+import hmac
+import secrets
 import sqlite3
 import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -108,7 +112,45 @@ class ResearchStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_reading_tasks_paper_id ON reading_tasks(paper_id)"
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth_user (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    must_change_password INTEGER NOT NULL DEFAULT 1,
+                    failed_login_count INTEGER NOT NULL DEFAULT 0,
+                    locked_until TEXT,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    csrf_token TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at)")
+            auth_columns = {
+                row["name"] for row in conn.execute("PRAGMA table_info(auth_user)").fetchall()
+            }
+            if "failed_login_count" not in auth_columns:
+                conn.execute("ALTER TABLE auth_user ADD COLUMN failed_login_count INTEGER NOT NULL DEFAULT 0")
+            if "locked_until" not in auth_columns:
+                conn.execute("ALTER TABLE auth_user ADD COLUMN locked_until TEXT")
             conn.execute("INSERT OR IGNORE INTO user_profile (id) VALUES (1)")
+            user = conn.execute("SELECT id FROM auth_user WHERE id = 1").fetchone()
+            if user is None:
+                conn.execute(
+                    "INSERT INTO auth_user (id, username, password_hash, must_change_password) VALUES (1, ?, ?, 1)",
+                    ("admin", self.hash_password("123456")),
+                )
 
     def list_reading(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -380,6 +422,261 @@ class ResearchStore:
             "reading_statuses": statuses,
             "recent_searches": recent,
         }
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        salt = secrets.token_bytes(16)
+        digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1, dklen=32)
+        return f"scrypt$16384$8$1${salt.hex()}${digest.hex()}"
+
+    @staticmethod
+    def verify_password(password: str, encoded: str) -> bool:
+        try:
+            algorithm, n, r, p, salt_hex, digest_hex = encoded.split("$", 5)
+            if algorithm != "scrypt":
+                return False
+            digest = hashlib.scrypt(
+                password.encode("utf-8"),
+                salt=bytes.fromhex(salt_hex),
+                n=int(n),
+                r=int(r),
+                p=int(p),
+                dklen=32,
+            )
+            return hmac.compare_digest(digest.hex(), digest_hex)
+        except (ValueError, TypeError):
+            return False
+
+    def authenticate(self, username: str, password: str) -> tuple[str, dict[str, Any] | None]:
+        now = datetime.now(timezone.utc)
+        with self._lock, self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM auth_user WHERE id = 1").fetchone()
+            if row is None:
+                return "invalid", None
+            # Always run the password KDF, even when the username is wrong. This
+            # avoids a cheap username-enumeration timing signal. A valid login is
+            # also allowed to recover from an attacker-triggered lockout, while
+            # wrong guesses remain throttled.
+            username_valid = hmac.compare_digest(str(row["username"]), username)
+            password_valid = self.verify_password(password, row["password_hash"])
+            valid = username_valid and password_valid
+            locked_until = row["locked_until"]
+            if locked_until:
+                try:
+                    if datetime.fromisoformat(locked_until) > now and not valid:
+                        return "locked", None
+                except ValueError:
+                    pass
+            if not valid:
+                failures = int(row["failed_login_count"] or 0) + 1
+                next_locked_until = None
+                if failures >= 5:
+                    next_locked_until = (now + timedelta(minutes=15)).isoformat()
+                    failures = 0
+                conn.execute(
+                    "UPDATE auth_user SET failed_login_count = ?, locked_until = ? WHERE id = 1",
+                    (failures, next_locked_until),
+                )
+                return "invalid", None
+            conn.execute(
+                "UPDATE auth_user SET failed_login_count = 0, locked_until = NULL WHERE id = 1"
+            )
+        return "ok", {
+            "username": row["username"],
+            "must_change_password": bool(row["must_change_password"]),
+        }
+
+    def create_session(self, ttl_hours: int = 24) -> tuple[str, dict[str, Any]]:
+        token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        csrf_token = secrets.token_urlsafe(32)
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(hours=ttl_hours)
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (now.isoformat(),))
+            conn.execute(
+                "INSERT INTO auth_sessions (token_hash, csrf_token, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+                (token_hash, csrf_token, now.isoformat(), expires.isoformat(), now.isoformat()),
+            )
+        return token, {"csrf_token": csrf_token, "expires_at": expires.isoformat()}
+
+    def get_session(self, token: str) -> dict[str, Any] | None:
+        if not token:
+            return None
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        now = datetime.now(timezone.utc)
+        with self._lock, self._connect() as conn:
+            row = conn.execute("SELECT * FROM auth_sessions WHERE token_hash = ?", (token_hash,)).fetchone()
+            if row is None:
+                return None
+            try:
+                expires = datetime.fromisoformat(row["expires_at"])
+            except ValueError:
+                return None
+            if expires <= now:
+                conn.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
+                return None
+            conn.execute(
+                "UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ?",
+                (now.isoformat(), token_hash),
+            )
+            user = conn.execute("SELECT username, must_change_password FROM auth_user WHERE id = 1").fetchone()
+        return {
+            "token_hash": token_hash,
+            "csrf_token": row["csrf_token"],
+            "expires_at": row["expires_at"],
+            "username": user["username"],
+            "must_change_password": bool(user["must_change_password"]),
+        }
+
+    def delete_session(self, token: str) -> None:
+        if not token:
+            return
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM auth_sessions WHERE token_hash = ?", (token_hash,))
+
+    def delete_all_sessions(self) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute("DELETE FROM auth_sessions")
+
+    def get_account(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            row = conn.execute("SELECT username, must_change_password, updated_at FROM auth_user WHERE id = 1").fetchone()
+            session_count = conn.execute("SELECT COUNT(*) FROM auth_sessions").fetchone()[0]
+        return {
+            "username": row["username"],
+            "must_change_password": bool(row["must_change_password"]),
+            "updated_at": row["updated_at"],
+            "active_sessions": session_count,
+        }
+
+    def update_credentials(self, current_password: str, username: str | None, new_password: str | None) -> dict[str, Any] | None:
+        with self._lock, self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute("SELECT * FROM auth_user WHERE id = 1").fetchone()
+            if row is None or not self.verify_password(current_password, row["password_hash"]):
+                return None
+            next_username = username.strip() if username is not None else row["username"]
+            next_hash = self.hash_password(new_password) if new_password else row["password_hash"]
+            must_change = 0 if new_password else row["must_change_password"]
+            conn.execute(
+                "UPDATE auth_user SET username = ?, password_hash = ?, must_change_password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+                (next_username, next_hash, must_change),
+            )
+        return self.get_account()
+
+    def export_backup(self) -> dict[str, Any]:
+        with self._connect() as conn:
+            tables = {}
+            for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes"):
+                tables[table] = [dict(row) for row in conn.execute(f"SELECT * FROM {table}").fetchall()]
+        return {
+            "format": "crypto-explorer-backup",
+            "version": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "tables": tables,
+        }
+
+    def import_backup(self, backup: dict[str, Any]) -> dict[str, int]:
+        if backup.get("format") != "crypto-explorer-backup" or backup.get("version") != 1:
+            raise ValueError("unsupported backup format")
+        tables = backup.get("tables")
+        if not isinstance(tables, dict):
+            raise ValueError("invalid backup tables")
+        allowed_columns = {
+            "reading_list": ["paper_id", "paper_json", "status", "priority", "note", "created_at", "updated_at"],
+            "reading_tasks": ["id", "paper_id", "task_type", "task_text", "scheduled_date", "status", "created_at", "updated_at"],
+            "favorites": ["paper_id", "paper_json", "created_at"],
+            "search_history": ["id", "query", "result_count", "seed_title", "search_type", "created_at"],
+            "user_profile": ["id", "display_name", "role", "institution", "research_interests", "updated_at"],
+            "notes": ["paper_id", "paper_json", "title", "content", "created_at", "updated_at"],
+        }
+        normalized: dict[str, list[dict[str, Any]]] = {}
+        total_rows = 0
+        for table, columns in allowed_columns.items():
+            rows = tables.get(table, [])
+            if not isinstance(rows, list) or len(rows) > 10000:
+                raise ValueError(f"invalid backup table: {table}")
+            normalized[table] = []
+            for row in rows:
+                if not isinstance(row, dict) or any(key not in columns for key in row):
+                    raise ValueError(f"invalid backup row: {table}")
+                item = {column: row.get(column) for column in columns}
+                if "paper_json" in item and item["paper_json"] is not None:
+                    parsed = json.loads(item["paper_json"])
+                    if not isinstance(parsed, dict) or not str(parsed.get("id", "")).strip():
+                        raise ValueError(f"invalid paper payload: {table}")
+                    if str(item.get("paper_id", "")) != str(parsed.get("id", "")):
+                        raise ValueError(f"paper id mismatch: {table}")
+                normalized[table].append(item)
+                total_rows += 1
+                if total_rows > 20000:
+                    raise ValueError("backup contains too many rows")
+
+        reading_ids = {str(row["paper_id"]) for row in normalized["reading_list"]}
+        for row in normalized["reading_list"]:
+            if row["status"] not in {"to_read", "reading", "done"}:
+                raise ValueError("invalid reading status")
+            if row["priority"] not in {1, 2, 3}:
+                raise ValueError("invalid reading priority")
+            if not isinstance(row["note"], str) or len(row["note"]) > 4000:
+                raise ValueError("invalid reading note")
+        seen_task_ids: set[int] = set()
+        for row in normalized["reading_tasks"]:
+            if not isinstance(row["id"], int) or row["id"] <= 0 or row["id"] in seen_task_ids:
+                raise ValueError("invalid reading task id")
+            seen_task_ids.add(row["id"])
+            if str(row["paper_id"]) not in reading_ids:
+                raise ValueError("reading task references missing paper")
+            if row["task_type"] not in {"read", "notes", "review", "reproduce", "custom"}:
+                raise ValueError("invalid reading task type")
+            if row["status"] not in {"todo", "doing", "done"}:
+                raise ValueError("invalid reading task status")
+            if not isinstance(row["task_text"], str) or not row["task_text"].strip() or len(row["task_text"]) > 500:
+                raise ValueError("invalid reading task text")
+            try:
+                datetime.strptime(str(row["scheduled_date"]), "%Y-%m-%d")
+            except ValueError as error:
+                raise ValueError("invalid reading task date") from error
+        for row in normalized["search_history"]:
+            if row["search_type"] not in {"graph", "papers", "authors", "venues"}:
+                raise ValueError("invalid history type")
+            if not isinstance(row["query"], str) or len(row["query"]) > 300:
+                raise ValueError("invalid history query")
+        for row in normalized["user_profile"]:
+            if row["id"] != 1:
+                raise ValueError("invalid profile id")
+            for key, limit in (("display_name", 100), ("role", 120), ("institution", 200), ("research_interests", 1000)):
+                if not isinstance(row[key], str) or len(row[key]) > limit:
+                    raise ValueError(f"invalid profile field: {key}")
+        for row in normalized["notes"]:
+            if not isinstance(row["title"], str) or len(row["title"]) > 300:
+                raise ValueError("invalid note title")
+            if not isinstance(row["content"], str) or len(row["content"]) > 500000:
+                raise ValueError("invalid note content")
+
+        with self._lock, self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                for table in ("reading_tasks", "notes", "favorites", "search_history", "reading_list", "user_profile"):
+                    conn.execute(f"DELETE FROM {table}")
+                for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes"):
+                    columns = allowed_columns[table]
+                    placeholders = ",".join("?" for _ in columns)
+                    names = ",".join(columns)
+                    for row in normalized[table]:
+                        conn.execute(
+                            f"INSERT INTO {table} ({names}) VALUES ({placeholders})",
+                            tuple(row[column] for column in columns),
+                        )
+                conn.execute("INSERT OR IGNORE INTO user_profile (id) VALUES (1)")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+        return {table: len(rows) for table, rows in normalized.items()}
 
     @staticmethod
     def _row_to_item(row: sqlite3.Row) -> dict[str, Any]:

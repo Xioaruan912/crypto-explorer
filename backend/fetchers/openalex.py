@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -6,6 +7,7 @@ import requests
 
 OPENALEX_BASE_URL = "https://api.openalex.org"
 logger = logging.getLogger("crypto_explorer.openalex")
+OPENALEX_ID_RE = re.compile(r"^[WAS]\d+$")
 
 SOURCE_QUERY_ALIASES = {
     "crypto": "International Cryptology Conference",
@@ -24,6 +26,13 @@ def _work_id(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     return value.rstrip("/").split("/")[-1]
+
+
+def _validated_id(value: str, prefix: str) -> str:
+    normalized = _work_id(value) or value
+    if not OPENALEX_ID_RE.fullmatch(normalized) or not normalized.startswith(prefix):
+        raise ValueError("Invalid OpenAlex identifier")
+    return normalized
 
 
 def _reconstruct_abstract(inverted_index: Any) -> Optional[str]:
@@ -194,7 +203,7 @@ class OpenAlexClient:
         return items
 
     def get_author(self, author_id: str, works_limit: int = 12) -> Dict[str, Any]:
-        author_id = _work_id(author_id) or author_id
+        author_id = _validated_id(author_id, "A")
         author = self._request(f"/authors/{author_id}", {})
         works_payload = self._request(
             "/works",
@@ -252,7 +261,7 @@ class OpenAlexClient:
         }
 
     def get_source(self, source_id: str, works_limit: int = 12) -> Dict[str, Any]:
-        source_id = _work_id(source_id) or source_id
+        source_id = _validated_id(source_id, "S")
         source = self._request(f"/sources/{source_id}", {})
         works_payload = self._request(
             "/works",
@@ -283,6 +292,7 @@ class OpenAlexClient:
         return [self._normalize_work(work) for work in results if isinstance(work, dict)]
 
     def get_citations(self, paper_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        paper_id = _validated_id(paper_id, "W")
         logger.info("citation fetch paper_id=%s limit=%s", paper_id, limit)
         payload = self._request(
             "/works",
