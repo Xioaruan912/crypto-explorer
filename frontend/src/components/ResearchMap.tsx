@@ -26,10 +26,10 @@ const PaperNode = ({ data, selected }: { data: { paper: Paper, activeFilter?: st
   return (
     <div 
       className={`bg-white rounded-xl shadow-sm border-2 transition-all w-[240px] ${
-        selected ? 'ring-4 ring-opacity-30 border-[#6D4AFF]' : 'border-gray-200 hover:border-gray-300'
+        selected ? 'ring-4 ring-opacity-30 border-[#F97316]' : 'border-gray-200 hover:border-gray-300'
       } ${isFilteredOut ? 'opacity-30 grayscale' : 'opacity-100'}`}
       style={{ 
-        borderColor: selected ? '#6D4AFF' : color, 
+        borderColor: selected ? '#F97316' : color,
         boxShadow: selected ? `0 0 0 4px ${color}33` : '0 1px 2px 0 rgba(0, 0, 0, 0.05)' 
       }}
       title={`标题：${paper.titleZh} (${paper.titleEn})\n作者：${paper.authors.join(', ')}\n年份：${paper.year}\n会议：${paper.venue}\n被引次数：${paper.citations}`}
@@ -48,7 +48,7 @@ const PaperNode = ({ data, selected }: { data: { paper: Paper, activeFilter?: st
         </div>
       </div>
       {paper.category === 'foundation' && (
-        <div className="bg-[#F2EFFF] px-3 py-1.5 border-t border-purple-100 text-xs font-medium text-[#6D4AFF] rounded-b-[10px]">
+        <div className="bg-[#FFF7ED] px-3 py-1.5 border-t border-orange-100 text-xs font-medium text-[#F97316] rounded-b-[10px]">
           基础理论论文
         </div>
       )}
@@ -151,9 +151,9 @@ export default function ResearchMap({ onNodeClick, activeFilter = 'all', graphDa
   return (
     <div className="w-full h-[600px] bg-gray-50 border border-gray-200 rounded-xl overflow-hidden relative">
       <div className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-lg border border-gray-200 bg-white/95 p-1.5 text-xs shadow-sm backdrop-blur-sm">
-        <button onClick={() => setDirection('TB')} className={`rounded-md px-2.5 py-1.5 ${direction === 'TB' ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50'}`}>纵向布局</button>
-        <button onClick={() => setDirection('LR')} className={`rounded-md px-2.5 py-1.5 ${direction === 'LR' ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50'}`}>横向布局</button>
-        <button onClick={() => setHideFiltered((value) => !value)} className={`rounded-md px-2.5 py-1.5 ${hideFiltered ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50'}`}>只显示筛选</button>
+        <button onClick={() => setDirection('TB')} className={`rounded-md px-2.5 py-1.5 ${direction === 'TB' ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}>纵向布局</button>
+        <button onClick={() => setDirection('LR')} className={`rounded-md px-2.5 py-1.5 ${direction === 'LR' ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}>横向布局</button>
+        <button onClick={() => setHideFiltered((value) => !value)} className={`rounded-md px-2.5 py-1.5 ${hideFiltered ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}>只显示筛选</button>
       </div>
       <ReactFlow
         nodes={nodes}
@@ -171,12 +171,12 @@ export default function ResearchMap({ onNodeClick, activeFilter = 'all', graphDa
       </ReactFlow>
       
       <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg border border-gray-200 shadow-sm flex items-center gap-4 text-xs font-medium">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#6D4AFF]"></div>基础理论</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#4C7EFF]"></div>安全性</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#39B96E]"></div>效率优化</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#F39A32]"></div>大规模 / 扩展性</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#EC4899]"></div>变体与扩展</div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#D946EF]"></div>应用与实践</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#F97316]"></div>基础理论</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#FB923C]"></div>安全性</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#FDBA74]"></div>效率优化</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#EA580C]"></div>大规模 / 扩展性</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#C2410C]"></div>变体与扩展</div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-[#F59E0B]"></div>应用与实践</div>
       </div>
     </div>
   );

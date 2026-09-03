@@ -222,7 +222,7 @@ export default function Home() {
         <main className="relative flex h-full min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
           {isSearching && (
             <div className="absolute inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center">
-              <Loader2 className="w-10 h-10 text-[#6D4AFF] animate-spin mb-4" />
+              <Loader2 className="w-10 h-10 text-[#F97316] animate-spin mb-4" />
               <p className="text-gray-700 font-medium text-lg">正在分析文献网络并生成图谱...</p>
               <p className="text-gray-500 text-sm mt-2">主题: {currentTopic}</p>
             </div>
@@ -337,7 +337,7 @@ export default function Home() {
                   <button
                     key={mode}
                     onClick={() => setStudyMode(mode)}
-                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${studyMode === mode ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}
+                    className={`rounded-md px-4 py-2 text-sm font-medium transition ${studyMode === mode ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}
                   >
                     {label}
                   </button>
@@ -353,7 +353,7 @@ export default function Home() {
               <ReadingListView items={readingList} onUpdate={updateReading} onRemove={removeReading} onSelect={selectFromReading} />
             ) : !graphData && !isSearching ? (
               <div className="mt-6 flex h-[600px] w-full flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-center">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#F2EFFF] text-[#6D4AFF]">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FFF7ED] text-[#F97316]">
                   <Search size={26} />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-900">等待你的搜索</h2>

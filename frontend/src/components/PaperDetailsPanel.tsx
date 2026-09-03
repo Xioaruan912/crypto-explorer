@@ -97,7 +97,7 @@ export default function PaperDetailsPanel({
             href={primaryUrl}
             target="_blank"
             rel="noreferrer"
-            className={`flex-1 font-medium py-2 rounded-lg flex justify-center items-center gap-2 transition-colors text-sm ${primaryUrl ? 'bg-[#6D4AFF] hover:bg-purple-700 text-white' : 'bg-gray-100 text-gray-400 pointer-events-none'}`}
+            className={`flex-1 font-medium py-2 rounded-lg flex justify-center items-center gap-2 transition-colors text-sm ${primaryUrl ? 'bg-[#F97316] hover:bg-orange-600 text-white' : 'bg-gray-100 text-gray-400 pointer-events-none'}`}
           >
             <FileText size={16} />
             {pdfUrl ? '查看 PDF' : '查看论文'}
@@ -113,8 +113,8 @@ export default function PaperDetailsPanel({
             disabled={!onToggleFavorite}
             className={`w-10 h-10 flex items-center justify-center border rounded-lg transition-colors ${
               isFavorite 
-                ? 'bg-[#F2EFFF] border-[#6D4AFF] text-[#6D4AFF]' 
-                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-[#6D4AFF]'
+                ? 'bg-[#FFF7ED] border-[#F97316] text-[#F97316]'
+                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100 hover:text-[#F97316]'
             } disabled:cursor-not-allowed`} 
             title={isFavorite ? "取消收藏" : "收藏"}
           >
@@ -125,7 +125,7 @@ export default function PaperDetailsPanel({
           type="button"
           disabled={inReadingList || !onAddReading}
           onClick={() => onAddReading?.(paper)}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#D8CEFF] bg-[#F8F6FF] py-2 text-sm font-medium text-[#6D4AFF] transition hover:bg-[#F2EFFF] disabled:cursor-default disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#FED7AA] bg-[#FFF7ED] py-2 text-sm font-medium text-[#F97316] transition hover:bg-[#FFF7ED] disabled:cursor-default disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
         >
           <BookOpenCheck size={16} />
           {inReadingList ? '已加入阅读清单' : '加入阅读清单'}
@@ -134,7 +134,7 @@ export default function PaperDetailsPanel({
 
       <div className="p-6 space-y-6">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#6D4AFF] pl-2">论文信息</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#F97316] pl-2">论文信息</h3>
           <div className="space-y-3 text-sm">
             <div className="flex">
               <span className="w-24 text-gray-500">会议/期刊：</span>
@@ -155,7 +155,7 @@ export default function PaperDetailsPanel({
             <div className="flex">
               <span className="w-24 text-gray-500">ePrint：</span>
               {eprintUrl ? (
-                <a href={eprintUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#6D4AFF] hover:underline">{paper.eprint}</a>
+                <a href={eprintUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#F97316] hover:underline">{paper.eprint}</a>
               ) : (
                 <span className="flex-1 text-gray-400">未匹配</span>
               )}
@@ -163,7 +163,7 @@ export default function PaperDetailsPanel({
             <div className="flex">
               <span className="w-24 text-gray-500">来源：</span>
               {semanticScholarUrl ? (
-                <a href={semanticScholarUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#6D4AFF] hover:underline break-all">Semantic Scholar</a>
+                <a href={semanticScholarUrl} target="_blank" rel="noreferrer" className="flex-1 text-[#F97316] hover:underline break-all">Semantic Scholar</a>
               ) : (
                 <span className="flex-1 text-gray-400">暂无</span>
               )}
@@ -171,7 +171,7 @@ export default function PaperDetailsPanel({
             <div className="flex">
               <span className="w-24 text-gray-500">DOI：</span>
               {paper.doi && doiUrl ? (
-                <a href={doiUrl} target="_blank" rel="noreferrer" className="flex-1 break-all text-[#6D4AFF] hover:underline">{paper.doi}</a>
+                <a href={doiUrl} target="_blank" rel="noreferrer" className="flex-1 break-all text-[#F97316] hover:underline">{paper.doi}</a>
               ) : (
                 <span className="flex-1 text-gray-400">暂无</span>
               )}
@@ -180,13 +180,13 @@ export default function PaperDetailsPanel({
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-2 border-l-4 border-[#6D4AFF] pl-2">摘要</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-2 border-l-4 border-[#F97316] pl-2">摘要</h3>
           <p className={`text-sm text-gray-600 leading-relaxed ${showFullAbstract ? '' : 'line-clamp-4'}`}>
             {paper.abstractZh}
           </p>
           <button 
             onClick={() => setShowFullAbstract(!showFullAbstract)}
-            className="text-[#6D4AFF] text-sm font-medium mt-1 hover:underline"
+            className="text-[#F97316] text-sm font-medium mt-1 hover:underline"
           >
             {showFullAbstract ? '收起全文' : '展开全文'}
           </button>
@@ -194,7 +194,7 @@ export default function PaperDetailsPanel({
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="border-l-4 border-[#6D4AFF] pl-2 text-sm font-semibold text-gray-900">阅读笔记（Markdown）</h3>
+            <h3 className="border-l-4 border-[#F97316] pl-2 text-sm font-semibold text-gray-900">阅读笔记（Markdown）</h3>
             {noteSaved && <span className="text-[11px] text-emerald-600">已保存</span>}
           </div>
           <p className="mb-3 text-xs leading-5 text-gray-400">支持直接编辑，也可以导入你本地的 .md 文件；保存后会与当前论文关联并写入 SQLite。</p>
@@ -203,22 +203,22 @@ export default function PaperDetailsPanel({
             <div className="rounded-lg border border-gray-200 bg-gray-50 py-8 text-center text-xs text-gray-400">正在加载笔记...</div>
           ) : (
             <>
-              <input value={noteTitle} onChange={(e) => { setNoteTitle(e.target.value); setNoteSaved(false); }} className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium outline-none focus:border-[#B9A8FF]" placeholder="笔记标题" />
-              <textarea value={noteContent} onChange={(e) => { setNoteContent(e.target.value); setNoteSaved(false); }} spellCheck={false} rows={12} className="w-full resize-y rounded-lg border border-gray-200 bg-[#FCFCFD] p-3 font-mono text-xs leading-6 text-gray-700 outline-none focus:border-[#B9A8FF]" />
+              <input value={noteTitle} onChange={(e) => { setNoteTitle(e.target.value); setNoteSaved(false); }} className="mb-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium outline-none focus:border-[#FDBA74]" placeholder="笔记标题" />
+              <textarea value={noteContent} onChange={(e) => { setNoteContent(e.target.value); setNoteSaved(false); }} spellCheck={false} rows={12} className="w-full resize-y rounded-lg border border-gray-200 bg-[#FCFCFD] p-3 font-mono text-xs leading-6 text-gray-700 outline-none focus:border-[#FDBA74]" />
               <div className="mt-2 grid grid-cols-3 gap-2">
                 <label className="flex cursor-pointer items-center justify-center gap-1 rounded-lg border border-gray-200 py-2 text-xs text-gray-600 hover:bg-gray-50">
                   <Upload size={13} /> 导入 .md
                   <input type="file" accept=".md,text/markdown,text/plain" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (file) { setNoteTitle(file.name.replace(/\.md$/i, '') || noteTitle); setNoteContent(await file.text()); setNoteSaved(false); } e.currentTarget.value = ''; }} />
                 </label>
                 <button type="button" onClick={() => downloadMarkdown(noteTitle || paper.titleEn, noteContent)} className="flex items-center justify-center gap-1 rounded-lg border border-gray-200 py-2 text-xs text-gray-600 hover:bg-gray-50"><Download size={13} /> 导出 .md</button>
-                <button type="button" disabled={noteSaving} onClick={async () => { setNoteSaving(true); setNoteError(''); try { const saved = await researchService.saveNote(paper, noteTitle, noteContent); setNoteTitle(saved.title); setNoteContent(saved.content); setNoteSaved(true); } catch (e) { setNoteError(e instanceof Error ? e.message : '保存失败'); } finally { setNoteSaving(false); } }} className="flex items-center justify-center gap-1 rounded-lg bg-[#6D4AFF] py-2 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"><Save size={13} />{noteSaving ? '保存中' : '保存'}</button>
+                <button type="button" disabled={noteSaving} onClick={async () => { setNoteSaving(true); setNoteError(''); try { const saved = await researchService.saveNote(paper, noteTitle, noteContent); setNoteTitle(saved.title); setNoteContent(saved.content); setNoteSaved(true); } catch (e) { setNoteError(e instanceof Error ? e.message : '保存失败'); } finally { setNoteSaving(false); } }} className="flex items-center justify-center gap-1 rounded-lg bg-[#F97316] py-2 text-xs font-medium text-white hover:bg-orange-600 disabled:opacity-50"><Save size={13} />{noteSaving ? '保存中' : '保存'}</button>
               </div>
             </>
           )}
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#6D4AFF] pl-2">主要贡献</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#F97316] pl-2">主要贡献</h3>
           <ul className="space-y-2">
             {paper.contributionsZh?.map((contribution, idx) => (
               <li key={idx} className="flex gap-2 text-sm text-gray-600">
@@ -230,10 +230,10 @@ export default function PaperDetailsPanel({
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#6D4AFF] pl-2">相关主题</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-3 border-l-4 border-[#F97316] pl-2">相关主题</h3>
           <div className="flex flex-wrap gap-2">
             {paper.topicsZh?.map((topic, idx) => (
-              <span key={idx} className="px-2.5 py-1 bg-[#F2EFFF] text-[#6D4AFF] text-xs font-medium rounded-md">
+              <span key={idx} className="px-2.5 py-1 bg-[#FFF7ED] text-[#F97316] text-xs font-medium rounded-md">
                 {topic}
               </span>
             ))}

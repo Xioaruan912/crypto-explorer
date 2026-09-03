@@ -154,7 +154,7 @@ export default function DiscoveryView({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F2EFFF] text-[#6D4AFF]">
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#FFF7ED] text-[#F97316]">
           <Icon size={22} />
         </div>
         <div>
@@ -171,13 +171,13 @@ export default function DiscoveryView({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={meta.placeholder}
-              className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#6D4AFF] focus:ring-2 focus:ring-[#6D4AFF]/15"
+              className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15"
             />
           </div>
           <button
             type="submit"
             disabled={loading || query.trim().length < 2}
-            className="flex min-w-24 items-center justify-center gap-2 rounded-lg bg-[#6D4AFF] px-4 py-2 text-sm font-medium text-white transition hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-w-24 items-center justify-center gap-2 rounded-lg bg-[#F97316] px-4 py-2 text-sm font-medium text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
             检索
@@ -249,7 +249,7 @@ export default function DiscoveryView({
             loading={loading}
             items={authors}
             render={(author) => (
-              <button key={author.id} type="button" onClick={() => loadAuthor(author)} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-[#B9A8FF] hover:shadow-md">
+              <button key={author.id} type="button" onClick={() => loadAuthor(author)} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-[#FDBA74] hover:shadow-md">
                 <div className="truncate font-semibold text-gray-900" title={author.name}>{author.name}</div>
                 <div className="mt-1 truncate text-sm text-gray-500" title={author.institutions.join(' · ')}>{author.institutions.join(' · ') || '机构信息暂无'}</div>
                 <div className="mt-3 flex gap-4 text-xs text-gray-500"><span>{author.worksCount.toLocaleString()} 篇论文</span><span>{author.citedByCount.toLocaleString()} 次被引</span></div>
@@ -275,7 +275,7 @@ export default function DiscoveryView({
             loading={loading}
             items={venues}
             render={(venue) => (
-              <button key={venue.id} type="button" onClick={() => loadVenue(venue)} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-[#B9A8FF] hover:shadow-md">
+              <button key={venue.id} type="button" onClick={() => loadVenue(venue)} className="w-full overflow-hidden rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-[#FDBA74] hover:shadow-md">
                 <div className="flex min-w-0 items-start justify-between gap-3"><div className="min-w-0 truncate font-semibold text-gray-900" title={venue.name}>{venue.name}</div><span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[11px] text-gray-500">{venue.type || 'source'}</span></div>
                 <div className="mt-1 truncate text-sm text-gray-500" title={venue.hostOrganization || venue.issn || ''}>{venue.hostOrganization || venue.issn || '出版机构信息暂无'}</div>
                 <div className="mt-3 flex gap-4 text-xs text-gray-500"><span>{venue.worksCount.toLocaleString()} 篇论文</span><span>{venue.citedByCount.toLocaleString()} 次被引</span>{venue.isOpenAccess && <span className="text-emerald-600">Open Access</span>}</div>
@@ -296,7 +296,7 @@ export default function DiscoveryView({
 
       <style jsx global>{`
         .filter-input { width: 100%; border-radius: .5rem; border: 1px solid #e5e7eb; background: #f9fafb; padding: .55rem .65rem; font-size: .8rem; color: #374151; outline: none; }
-        .filter-input:focus { border-color: #6D4AFF; box-shadow: 0 0 0 2px rgba(109,74,255,.12); }
+        .filter-input:focus { border-color: #F97316; box-shadow: 0 0 0 2px rgba(249,115,22,.12); }
       `}</style>
     </div>
   );
@@ -357,7 +357,7 @@ function PaperCard({ paper, isFavorite, inReading, onSelect, onToggleFavorite, o
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-gray-300 hover:shadow-md">
       <div className="flex gap-4">
         <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
-          <div className="line-clamp-2 break-words font-semibold leading-6 text-gray-900 hover:text-[#6D4AFF]">{paper.titleEn}</div>
+          <div className="line-clamp-2 break-words font-semibold leading-6 text-gray-900 hover:text-[#F97316]">{paper.titleEn}</div>
           <div className="mt-1 truncate text-sm text-gray-500">{paper.authors.join(', ') || '作者未知'}</div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
             <span>{paper.year}</span><span className="max-w-[360px] truncate" title={paper.venue}>{paper.venue}</span><span>{paper.citations || 0} 次被引</span><span>{paper.references || 0} 篇参考文献</span>
@@ -365,8 +365,8 @@ function PaperCard({ paper, isFavorite, inReading, onSelect, onToggleFavorite, o
           </div>
         </button>
         <div className="flex shrink-0 items-start gap-2">
-          <button type="button" onClick={onToggleFavorite} title={isFavorite ? '取消收藏' : '收藏'} className={`rounded-lg border p-2 transition ${isFavorite ? 'border-[#B9A8FF] bg-[#F2EFFF] text-[#6D4AFF]' : 'border-gray-200 text-gray-400 hover:text-[#6D4AFF]'}`}><Bookmark size={17} fill={isFavorite ? 'currentColor' : 'none'} /></button>
-          <button type="button" disabled={inReading} onClick={onAddReading} title={inReading ? '已在阅读清单' : '加入阅读清单'} className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-[#6D4AFF] disabled:cursor-default disabled:bg-gray-50 disabled:text-emerald-500"><BookOpenCheck size={17} /></button>
+          <button type="button" onClick={onToggleFavorite} title={isFavorite ? '取消收藏' : '收藏'} className={`rounded-lg border p-2 transition ${isFavorite ? 'border-[#FDBA74] bg-[#FFF7ED] text-[#F97316]' : 'border-gray-200 text-gray-400 hover:text-[#F97316]'}`}><Bookmark size={17} fill={isFavorite ? 'currentColor' : 'none'} /></button>
+          <button type="button" disabled={inReading} onClick={onAddReading} title={inReading ? '已在阅读清单' : '加入阅读清单'} className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-[#F97316] disabled:cursor-default disabled:bg-gray-50 disabled:text-emerald-500"><BookOpenCheck size={17} /></button>
           {sourceUrl && <a href={sourceUrl} target="_blank" rel="noreferrer" title="打开来源" className="rounded-lg border border-gray-200 p-2 text-gray-400 transition hover:text-gray-700"><ExternalLink size={17} /></a>}
         </div>
       </div>
@@ -383,7 +383,7 @@ function AuthorDetailPanel({ detail, loading, ...paperProps }: { detail: Discove
     <div className="space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
       <div><h2 className="text-xl font-bold text-gray-900">{detail.name}</h2><p className="mt-1 text-sm text-gray-500">{detail.institutions.join(' · ') || '机构信息暂无'}</p></div>
       <div className="grid grid-cols-2 gap-3"><Metric label="论文数量" value={detail.worksCount} /><Metric label="总被引次数" value={detail.citedByCount} /></div>
-      {orcidUrl && <a href={orcidUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">ORCID <ExternalLink size={13} /></a>}
+      {orcidUrl && <a href={orcidUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#F97316] hover:underline">ORCID <ExternalLink size={13} /></a>}
       <div><h3 className="mb-3 font-semibold text-gray-900">高影响力代表论文</h3><div className="space-y-3">{detail.topWorks.map((paper) => <CompactPaper key={paper.id} paper={paper} {...paperProps} />)}</div></div>
     </div>
   );
@@ -398,7 +398,7 @@ function VenueDetailPanel({ detail, loading, ...paperProps }: { detail: Discover
       <div><h2 className="text-xl font-bold text-gray-900">{detail.name}</h2><p className="mt-1 text-sm text-gray-500">{detail.hostOrganization || detail.issn || '出版机构信息暂无'}</p></div>
       <div className="grid grid-cols-2 gap-3"><Metric label="收录论文" value={detail.worksCount} /><Metric label="总被引次数" value={detail.citedByCount} /></div>
       <div className="flex flex-wrap gap-2 text-xs">{detail.type && <Badge>{detail.type}</Badge>}{detail.isOpenAccess && <Badge>Open Access</Badge>}{detail.isInDoaj && <Badge>DOAJ</Badge>}</div>
-      {homepageUrl && <a href={homepageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#6D4AFF] hover:underline">访问主页 <ExternalLink size={13} /></a>}
+      {homepageUrl && <a href={homepageUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-[#F97316] hover:underline">访问主页 <ExternalLink size={13} /></a>}
       <div><h3 className="mb-3 font-semibold text-gray-900">高影响力代表论文</h3><div className="space-y-3">{detail.topWorks.map((paper) => <CompactPaper key={paper.id} paper={paper} {...paperProps} />)}</div></div>
     </div>
   );
@@ -415,13 +415,13 @@ interface SharedPaperActions {
 function CompactPaper({ paper, favoriteIds, readingIds, onSelectPaper, onToggleFavorite, onAddReading }: { paper: Paper } & SharedPaperActions) {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50 p-3">
-      <button type="button" onClick={() => onSelectPaper(paper)} className="w-full min-w-0 text-left"><div className="line-clamp-2 break-words text-sm font-medium leading-5 text-gray-900 hover:text-[#6D4AFF]">{paper.titleEn}</div><div className="mt-1 truncate text-xs text-gray-500" title={`${paper.year} · ${paper.venue} · ${paper.citations || 0} 次被引`}>{paper.year} · {paper.venue} · {paper.citations || 0} 次被引</div></button>
-      <div className="mt-2 flex gap-2"><button type="button" onClick={() => onToggleFavorite(paper)} className="text-xs text-[#6D4AFF]">{favoriteIds.has(paper.id) ? '取消收藏' : '收藏'}</button><span className="text-gray-300">·</span><button type="button" disabled={readingIds.has(paper.id)} onClick={() => onAddReading(paper)} className="text-xs text-[#6D4AFF] disabled:text-gray-400">{readingIds.has(paper.id) ? '已加入阅读' : '加入阅读'}</button></div>
+      <button type="button" onClick={() => onSelectPaper(paper)} className="w-full min-w-0 text-left"><div className="line-clamp-2 break-words text-sm font-medium leading-5 text-gray-900 hover:text-[#F97316]">{paper.titleEn}</div><div className="mt-1 truncate text-xs text-gray-500" title={`${paper.year} · ${paper.venue} · ${paper.citations || 0} 次被引`}>{paper.year} · {paper.venue} · {paper.citations || 0} 次被引</div></button>
+      <div className="mt-2 flex gap-2"><button type="button" onClick={() => onToggleFavorite(paper)} className="text-xs text-[#F97316]">{favoriteIds.has(paper.id) ? '取消收藏' : '收藏'}</button><span className="text-gray-300">·</span><button type="button" disabled={readingIds.has(paper.id)} onClick={() => onAddReading(paper)} className="text-xs text-[#F97316] disabled:text-gray-400">{readingIds.has(paper.id) ? '已加入阅读' : '加入阅读'}</button></div>
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) { return <div className="rounded-lg bg-gray-50 p-3"><div className="text-xl font-bold text-gray-900">{value.toLocaleString()}</div><div className="mt-1 text-xs text-gray-500">{label}</div></div>; }
-function Badge({ children }: { children: React.ReactNode }) { return <span className="rounded-full bg-[#F2EFFF] px-2.5 py-1 font-medium text-[#6D4AFF]">{children}</span>; }
+function Badge({ children }: { children: React.ReactNode }) { return <span className="rounded-full bg-[#FFF7ED] px-2.5 py-1 font-medium text-[#F97316]">{children}</span>; }
 function LoadingCard() { return <div className="flex min-h-48 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500"><Loader2 className="mr-2 animate-spin" size={18} />正在加载...</div>; }
 function EmptyCard({ label }: { label: string }) { return <div className="flex min-h-48 flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white text-center text-sm text-gray-500"><Search className="mb-3 text-gray-300" size={32} /><div>{label}</div></div>; }

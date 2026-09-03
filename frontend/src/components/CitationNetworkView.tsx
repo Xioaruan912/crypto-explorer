@@ -42,7 +42,7 @@ export default function CitationNetworkView({
             <h2 className="text-lg font-semibold text-gray-900">引文网络</h2>
             <p className="mt-1 text-sm text-gray-500">按网络连接度识别关键论文，点击节点查看上下游关系。</p>
           </div>
-          <GitMerge className="text-[#6D4AFF]" />
+          <GitMerge className="text-[#F97316]" />
         </div>
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
           {ranked.map((paper) => {
@@ -52,7 +52,7 @@ export default function CitationNetworkView({
               <button
                 key={paper.id}
                 onClick={() => onSelect(paper.id)}
-                className={`rounded-xl border p-4 text-left transition ${active ? 'border-[#6D4AFF] bg-[#F7F5FF] shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}
+                className={`rounded-xl border p-4 text-left transition ${active ? 'border-[#F97316] bg-[#FFF7ED] shadow-sm' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}
               >
                 <div className="mb-3 flex items-center justify-between">
                   <span className="h-3 w-3 rounded-full" style={{ background: categoryColors[paper.category] }} />
@@ -71,7 +71,7 @@ export default function CitationNetworkView({
       </div>
       <aside className="rounded-xl border border-gray-200 bg-white p-5">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <MousePointer2 size={16} className="text-[#6D4AFF]" /> 当前节点
+          <MousePointer2 size={16} className="text-[#F97316]" /> 当前节点
         </div>
         {selected ? (
           <>

@@ -154,8 +154,8 @@ export default function ReadingListView({
           <p className="mt-1 text-sm text-gray-500">把阅读清单排成一周 TODO：哪天读什么、做笔记还是复现，都可以单独安排。</p>
         </div>
         <div className="flex items-center rounded-lg bg-gray-100 p-1">
-          <button onClick={() => setMode('week')} className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm ${mode === 'week' ? 'bg-white font-medium text-[#6D4AFF] shadow-sm' : 'text-gray-500'}`}><CalendarDays size={15} />本周计划</button>
-          <button onClick={() => setMode('library')} className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm ${mode === 'library' ? 'bg-white font-medium text-[#6D4AFF] shadow-sm' : 'text-gray-500'}`}><ListChecks size={15} />阅读库</button>
+          <button onClick={() => setMode('week')} className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm ${mode === 'week' ? 'bg-white font-medium text-[#F97316] shadow-sm' : 'text-gray-500'}`}><CalendarDays size={15} />本周计划</button>
+          <button onClick={() => setMode('library')} className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm ${mode === 'library' ? 'bg-white font-medium text-[#F97316] shadow-sm' : 'text-gray-500'}`}><ListChecks size={15} />阅读库</button>
         </div>
       </div>
 
@@ -163,19 +163,19 @@ export default function ReadingListView({
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-3">
             <div className="flex items-center gap-2">
-              <button onClick={() => navigateWeek(-7)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-[#6D4AFF]" title="上一周"><ChevronLeft size={16} /></button>
-              <button onClick={goThisWeek} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:text-[#6D4AFF]">本周</button>
-              <button onClick={() => navigateWeek(7)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-[#6D4AFF]" title="下一周"><ChevronRight size={16} /></button>
+              <button onClick={() => navigateWeek(-7)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-[#F97316]" title="上一周"><ChevronLeft size={16} /></button>
+              <button onClick={goThisWeek} className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:text-[#F97316]">本周</button>
+              <button onClick={() => navigateWeek(7)} className="rounded-lg border border-gray-200 bg-white p-2 text-gray-500 hover:text-[#F97316]" title="下一周"><ChevronRight size={16} /></button>
               <div className="ml-2 text-sm font-semibold text-gray-900">{formatWeekRange(weekStart)}</div>
             </div>
             <div className="flex gap-2 text-xs">
-              <span className="rounded-full bg-[#F2EFFF] px-3 py-1.5 font-medium text-[#6D4AFF]">{doneTasks}/{tasks.length} 已完成</span>
+              <span className="rounded-full bg-[#FFF7ED] px-3 py-1.5 font-medium text-[#F97316]">{doneTasks}/{tasks.length} 已完成</span>
               {unscheduledCount > 0 && <span className="rounded-full bg-amber-50 px-3 py-1.5 font-medium text-amber-700">{unscheduledCount} 篇待读未安排</span>}
             </div>
           </div>
 
-          <div className="grid gap-2 rounded-xl border border-[#DDD5FF] bg-[#FAF9FF] p-3 lg:grid-cols-[minmax(180px,1.35fr)_110px_130px_minmax(220px,1.6fr)_90px]">
-            <select value={selectedDraftPaperId} onChange={(event) => setDraftPaperId(event.target.value)} disabled={!items.length} className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#9D87FF]">
+          <div className="grid gap-2 rounded-xl border border-[#FED7AA] bg-[#FFF7ED] p-3 lg:grid-cols-[minmax(180px,1.35fr)_110px_130px_minmax(220px,1.6fr)_90px]">
+            <select value={selectedDraftPaperId} onChange={(event) => setDraftPaperId(event.target.value)} disabled={!items.length} className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#FB923C]">
               {items.length ? items.map((item) => <option key={item.paper.id} value={item.paper.id}>{item.paper.titleEn}</option>) : <option value="">先加入论文到阅读清单</option>}
             </select>
             <select value={draftDayIndex} onChange={(event) => setDraftDayIndex(Number(event.target.value))} className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700">
@@ -184,8 +184,8 @@ export default function ReadingListView({
             <select value={draftType} onChange={(event) => { const next = event.target.value as ReadingTaskType; setDraftType(next); setDraftText(taskTypeDefaultText[next]); }} className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700">
               {Object.entries(taskTypeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
-            <input value={draftText} onChange={(event) => setDraftText(event.target.value)} placeholder="这一天具体要做什么？" className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#9D87FF]" />
-            <button disabled={!items.length || addingTask || !draftText.trim()} onClick={addTask} className="flex items-center justify-center gap-1 rounded-lg bg-[#6D4AFF] px-3 py-2 text-sm font-medium text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={15} />安排</button>
+            <input value={draftText} onChange={(event) => setDraftText(event.target.value)} placeholder="这一天具体要做什么？" className="min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-[#FB923C]" />
+            <button disabled={!items.length || addingTask || !draftText.trim()} onClick={addTask} className="flex items-center justify-center gap-1 rounded-lg bg-[#F97316] px-3 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"><Plus size={15} />安排</button>
           </div>
 
           {taskError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{taskError}</div>}
@@ -198,18 +198,18 @@ export default function ReadingListView({
                 {weekDays.map((day) => {
                   const dayTasks = tasks.filter((task) => task.scheduled_date === day.iso);
                   return (
-                    <section key={day.iso} className={`min-h-[300px] rounded-xl border p-3 ${day.isToday ? 'border-[#9D87FF] bg-[#FAF9FF]' : 'border-gray-200 bg-gray-50/60'}`}>
+                    <section key={day.iso} className={`min-h-[300px] rounded-xl border p-3 ${day.isToday ? 'border-[#FB923C] bg-[#FFF7ED]' : 'border-gray-200 bg-gray-50/60'}`}>
                       <div className="mb-3 flex items-start justify-between">
-                        <div><div className={`text-sm font-semibold ${day.isToday ? 'text-[#6D4AFF]' : 'text-gray-800'}`}>{day.weekday}</div><div className="mt-0.5 text-xs text-gray-400">{day.shortDate}</div></div>
+                        <div><div className={`text-sm font-semibold ${day.isToday ? 'text-[#F97316]' : 'text-gray-800'}`}>{day.weekday}</div><div className="mt-0.5 text-xs text-gray-400">{day.shortDate}</div></div>
                         <span className="rounded-full bg-white px-2 py-1 text-[11px] text-gray-500">{dayTasks.length}</span>
                       </div>
                       <div className="space-y-2">
                         {dayTasks.map((task) => (
                           <div key={task.id} className={`rounded-lg border bg-white p-2.5 shadow-sm ${task.status === 'done' ? 'border-emerald-100 opacity-65' : task.status === 'doing' ? 'border-amber-200' : 'border-gray-200'}`}>
                             <div className="flex items-start gap-2">
-                              <button onClick={() => patchTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' })} className={`mt-0.5 shrink-0 ${task.status === 'done' ? 'text-emerald-500' : 'text-gray-300 hover:text-[#6D4AFF]'}`} title={task.status === 'done' ? '标记未完成' : '标记完成'}>{task.status === 'done' ? <CheckCircle2 size={16} /> : <Circle size={16} />}</button>
+                              <button onClick={() => patchTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' })} className={`mt-0.5 shrink-0 ${task.status === 'done' ? 'text-emerald-500' : 'text-gray-300 hover:text-[#F97316]'}`} title={task.status === 'done' ? '标记未完成' : '标记完成'}>{task.status === 'done' ? <CheckCircle2 size={16} /> : <Circle size={16} />}</button>
                               <button onClick={() => onSelect(task.paper.id)} className="min-w-0 flex-1 text-left">
-                                <div className="line-clamp-2 text-xs font-semibold leading-5 text-gray-900 hover:text-[#6D4AFF]">{task.paper.titleEn}</div>
+                                <div className="line-clamp-2 text-xs font-semibold leading-5 text-gray-900 hover:text-[#F97316]">{task.paper.titleEn}</div>
                               </button>
                             </div>
                             <textarea
@@ -220,10 +220,10 @@ export default function ReadingListView({
                                 const value = event.target.value.trim();
                                 if (value && value !== task.task_text) patchTask(task.id, { task_text: value });
                               }}
-                              className="mt-2 w-full resize-none rounded-md border border-transparent bg-gray-50 px-2 py-1.5 text-xs leading-5 text-gray-600 outline-none focus:border-[#D8CEFF] focus:bg-white"
+                              className="mt-2 w-full resize-none rounded-md border border-transparent bg-gray-50 px-2 py-1.5 text-xs leading-5 text-gray-600 outline-none focus:border-[#FED7AA] focus:bg-white"
                             />
                             <div className="mt-2 flex items-center justify-between gap-1">
-                              <select value={task.task_type} onChange={(event) => patchTask(task.id, { task_type: event.target.value as ReadingTaskType })} className="max-w-[90px] rounded border border-[#E4DEFF] bg-[#F8F6FF] px-1 py-1 text-[10px] font-medium text-[#6D4AFF]">
+                              <select value={task.task_type} onChange={(event) => patchTask(task.id, { task_type: event.target.value as ReadingTaskType })} className="max-w-[90px] rounded border border-[#FFEDD5] bg-[#FFF7ED] px-1 py-1 text-[10px] font-medium text-[#F97316]">
                                 {Object.entries(taskTypeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                               </select>
                               <button onClick={() => removeTask(task.id)} className="p-1 text-gray-300 hover:text-red-500" title="删除任务"><Trash2 size={13} /></button>
@@ -256,7 +256,7 @@ export default function ReadingListView({
               ['reading', `在读 ${counts.reading}`],
               ['done', `已读 ${counts.done}`],
             ] as const).map(([value, label]) => (
-              <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-1.5 text-sm ${filter === value ? 'bg-white font-medium text-[#6D4AFF] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
+              <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-1.5 text-sm ${filter === value ? 'bg-white font-medium text-[#F97316] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
             ))}
           </div>
           {items.length === 0 ? (
@@ -271,7 +271,7 @@ export default function ReadingListView({
                 <div key={item.paper.id} className="rounded-xl border border-gray-100 bg-gray-50/70 p-4">
                   <div className="flex gap-4">
                     <button onClick={() => onSelect(item.paper.id)} className="min-w-0 flex-1 text-left">
-                      <div className="line-clamp-2 font-medium text-gray-900 hover:text-[#6D4AFF]">{item.paper.titleEn}</div>
+                      <div className="line-clamp-2 font-medium text-gray-900 hover:text-[#F97316]">{item.paper.titleEn}</div>
                       <div className="mt-1 truncate text-sm text-gray-500">{item.paper.authors.join(', ')} · {item.paper.year}</div>
                     </button>
                     <select value={item.status} onChange={(event) => onUpdate(item.paper.id, { status: event.target.value as ReadingStatus })} className="h-9 rounded-lg border border-gray-200 bg-white px-2 text-sm text-gray-600">
@@ -282,7 +282,7 @@ export default function ReadingListView({
                     </select>
                     <button onClick={() => { onRemove(item.paper.id); setTasks((current) => current.filter((task) => task.paper.id !== item.paper.id)); }} className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-gray-400 hover:text-red-500" title="移除"><Trash2 size={16} /></button>
                   </div>
-                  <textarea key={`${item.paper.id}-${item.updated_at}`} defaultValue={item.note} onBlur={(event) => { if (event.target.value !== item.note) onUpdate(item.paper.id, { note: event.target.value }); }} placeholder="记录阅读目标、关键结论、待验证问题……" className="mt-3 min-h-20 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 outline-none focus:border-[#9D87FF]" />
+                  <textarea key={`${item.paper.id}-${item.updated_at}`} defaultValue={item.note} onBlur={(event) => { if (event.target.value !== item.note) onUpdate(item.paper.id, { note: event.target.value }); }} placeholder="记录阅读目标、关键结论、待验证问题……" className="mt-3 min-h-20 w-full resize-y rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700 outline-none focus:border-[#FB923C]" />
                 </div>
               ))}
               {filteredItems.length === 0 && items.length > 0 && <div className="py-16 text-center text-sm text-gray-400">这个阅读状态下还没有论文。</div>}

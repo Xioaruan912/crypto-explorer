@@ -37,13 +37,13 @@ export default function TimelineView({
                 <div className="mt-1 text-xs text-gray-400">{yearPapers.length} papers</div>
               </div>
               <div className="relative border-l border-gray-200 pl-6">
-                <div className="absolute -left-2 top-2 h-4 w-4 rounded-full border-4 border-white bg-[#6D4AFF] shadow" />
+                <div className="absolute -left-2 top-2 h-4 w-4 rounded-full border-4 border-white bg-[#F97316] shadow" />
                 <div className="space-y-3">
                   {yearPapers.map((paper) => (
                     <button
                       key={paper.id}
                       onClick={() => onSelect(paper.id)}
-                      className="group w-full overflow-hidden rounded-xl border border-gray-100 bg-gray-50/70 p-4 text-left transition hover:border-[#D8CEFF] hover:bg-[#FAF9FF]"
+                      className="group w-full overflow-hidden rounded-xl border border-gray-100 bg-gray-50/70 p-4 text-left transition hover:border-[#FED7AA] hover:bg-[#FFF7ED]"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
@@ -53,10 +53,10 @@ export default function TimelineView({
                             <span>·</span>
                             <span className="shrink-0">{paper.citations || 0} 被引</span>
                           </div>
-                          <div className="line-clamp-2 break-words font-medium text-gray-900 group-hover:text-[#6D4AFF]">{paper.titleEn}</div>
+                          <div className="line-clamp-2 break-words font-medium text-gray-900 group-hover:text-[#F97316]">{paper.titleEn}</div>
                           <div className="mt-1 truncate text-sm text-gray-500">{paper.authors.join(', ')}</div>
                         </div>
-                        <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-gray-300 group-hover:text-[#6D4AFF]" />
+                        <ChevronRight className="mt-2 h-4 w-4 shrink-0 text-gray-300 group-hover:text-[#F97316]" />
                       </div>
                     </button>
                   ))}

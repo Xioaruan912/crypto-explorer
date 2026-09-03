@@ -42,7 +42,7 @@ export default function Sidebar({ graphData, viewMode, readingCount, favoriteCou
   return (
     <aside className="w-[230px] bg-white border-r border-gray-200 flex flex-col h-full shrink-0">
       <div className="p-3">
-        <button onClick={() => onWorkspaceChange?.('dashboard')} className={`w-full px-3 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors ${activeWorkspace === 'dashboard' ? 'bg-[#E9E3FF] text-[#6D4AFF]' : 'bg-[#F2EFFF] text-[#6D4AFF] hover:bg-[#ECE7FF]'}`}>
+        <button onClick={() => onWorkspaceChange?.('dashboard')} className={`w-full px-3 py-2 rounded-md font-medium text-sm flex items-center gap-2 transition-colors ${activeWorkspace === 'dashboard' ? 'bg-[#FFEDD5] text-[#F97316]' : 'bg-[#FFF7ED] text-[#F97316] hover:bg-[#FFF7ED]'}`}>
           <Network size={18} />
           概览
         </button>
@@ -127,16 +127,16 @@ function NavItem({
         disabled
           ? 'cursor-not-allowed text-gray-300'
           : active
-            ? 'text-[#6D4AFF] bg-gray-50 font-medium'
+            ? 'text-[#F97316] bg-gray-50 font-medium'
             : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
       }`}
     >
-      <div className={active ? 'text-[#6D4AFF]' : 'text-gray-400'}>
+      <div className={active ? 'text-[#F97316]' : 'text-gray-400'}>
         {icon}
       </div>
       <span className="flex-1">{label}</span>
       {typeof badge === 'number' && badge > 0 && (
-        <span className="rounded-full bg-[#F2EFFF] px-2 py-0.5 text-[11px] font-semibold text-[#6D4AFF]">{badge}</span>
+        <span className="rounded-full bg-[#FFF7ED] px-2 py-0.5 text-[11px] font-semibold text-[#F97316]">{badge}</span>
       )}
     </button>
   );

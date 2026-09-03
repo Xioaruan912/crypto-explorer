@@ -3,7 +3,7 @@
 [![CI](https://github.com/Xioaruan912/crypto-explorer/actions/workflows/ci.yml/badge.svg)](https://github.com/Xioaruan912/crypto-explorer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-面向密码学学习与论文研究的可视化研究工作台。它把文献检索、引用关系、时间线、阅读清单、收藏和 Markdown 阅读笔记放在一个可持久化的工作流里。
+面向密码学学习与论文研究的可视化研究工作台。它把文献检索、引用关系、时间线、阅读清单、收藏和 Markdown 阅读笔记放在一个可持久化的工作流里。界面采用统一的橙色研究工作台视觉体系，成功、警告与错误状态仍保留必要的语义色。
 
 ## 功能
 
@@ -18,8 +18,6 @@
 - **作者检索**：作者、机构、学术影响力和代表论文。
 - **会议 / 期刊检索**：支持 CRYPTO、ASIACRYPT、IEEE S&P、CCS、USENIX Security 等常用缩写。
 - **阅读清单 / 每周 TODO**：把论文排到周一至周日，支持阅读、笔记、复习、复现、自定义任务与独立完成状态。
-- **概念谱系 / 开山论文发现**：从现代关键词建立锚点，沿参考文献反向追溯祖先，并对常见密码学方向使用透明的历史术语映射，避免“标题没有现代关键词就找不到开山论文”。
-- **基础理论论文抽取**：先生成高质量基础论文池，再均匀随机抽一篇；最近 10 次优先避重，不设置稀有度、积分或概率等级。
 - **收藏 / 历史 / 仪表盘**：研究行为统一持久化并可回溯；默认进入仪表盘并直接展示本周阅读计划。
 - **Markdown 笔记**：网页编辑、本地 `.md` 导入、论文关联和 `.md` 导出。
 - **账户与安全**：内置单管理员登录、强制修改默认密码、HttpOnly 会话、CSRF 防护和登录锁定。
@@ -209,9 +207,10 @@ crypto-explorer/
 GitHub Actions 会在 `main` push 和 Pull Request 上执行：
 
 1. Frontend `npm ci` / lint / production build
-2. Backend dependency install / Python compile / FastAPI import smoke test
+2. Backend dependency audit / Bandit static scan / Python compile / FastAPI import smoke test
 3. Backend authentication / CSRF / session / backup security regression smoke test
-4. Docker Compose config / image build
+4. Concept Genealogy 与中文英文学术检索规范化回归测试
+5. Docker Compose config / image build
 
 ## 安全
 

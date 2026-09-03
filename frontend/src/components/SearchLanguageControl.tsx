@@ -18,7 +18,7 @@ export function SearchLanguageToggle({
       <button
         type="button"
         onClick={() => onChange('academic_en')}
-        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${mode === 'academic_en' ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50'}`}
+        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${mode === 'academic_en' ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}
         title="检测到中文密码学术语时，转换为常用英文学术检索词"
       >
         中文→英文
@@ -26,7 +26,7 @@ export function SearchLanguageToggle({
       <button
         type="button"
         onClick={() => onChange('original')}
-        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${mode === 'original' ? 'bg-[#F2EFFF] text-[#6D4AFF]' : 'text-gray-500 hover:bg-gray-50'}`}
+        className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition ${mode === 'original' ? 'bg-[#FFF7ED] text-[#F97316]' : 'text-gray-500 hover:bg-gray-50'}`}
         title="完全使用你输入的原始关键词"
       >
         原词
@@ -39,15 +39,15 @@ export function QueryLanguageNotice({ info, className = '' }: { info: QueryInfo 
   if (!info) return null;
   const changed = info.translated && info.effectiveQuery.trim().toLowerCase() !== info.originalQuery.trim().toLowerCase();
   return (
-    <div className={`rounded-lg border border-[#DED6FF] bg-[#FAF9FF] px-3 py-2.5 text-xs text-gray-600 ${className}`}>
+    <div className={`rounded-lg border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2.5 text-xs text-gray-600 ${className}`}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <Languages size={14} className="text-[#6D4AFF]" />
+        <Languages size={14} className="text-[#F97316]" />
         <span>{info.notice}</span>
         {changed && (
           <>
             <span className="text-gray-300">·</span>
             <span className="text-gray-400">实际检索：</span>
-            <span className="font-semibold text-[#6D4AFF]">{info.effectiveQuery}</span>
+            <span className="font-semibold text-[#F97316]">{info.effectiveQuery}</span>
           </>
         )}
       </div>

@@ -120,7 +120,7 @@ export default function TimelineOverview({ activeFilter = 'all', papers = [], ti
           <p className="text-xs text-gray-500 mt-1">按年份统计论文数量</p>
         </div>
         <div className="text-sm font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-          论文总数：<span className="text-[#6D4AFF]">{totalPapers} 篇</span>
+          论文总数：<span className="text-[#F97316]">{totalPapers} 篇</span>
         </div>
       </div>
       

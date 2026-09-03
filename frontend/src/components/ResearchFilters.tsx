@@ -6,7 +6,7 @@ import { categoryColors } from '../constants/categories';
 import { ResearchTimeRange } from '../types/research';
 
 const filters = [
-  { id: 'all', label: '全部', color: '#6D4AFF' },
+  { id: 'all', label: '全部', color: '#F97316' },
   { id: 'foundation', label: '基础理论', color: categoryColors.foundation },
   { id: 'security', label: '安全性', color: categoryColors.security },
   { id: 'efficiency', label: '效率优化', color: categoryColors.efficiency },
@@ -50,7 +50,7 @@ export default function ResearchFilters({ activeFilter, onFilterChange, timeRang
             onClick={() => onFilterChange(filter.id)}
             className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
               activeFilter === filter.id
-                ? 'border-[#6D4AFF] bg-[#F2EFFF] text-[#6D4AFF]'
+                ? 'border-[#F97316] bg-[#FFF7ED] text-[#F97316]'
                 : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
             }`}
           >
@@ -67,7 +67,7 @@ export default function ResearchFilters({ activeFilter, onFilterChange, timeRang
         >
           <CalendarRange size={15} className="text-gray-400" />
           <span>时间范围：{label}</span>
-          {timeRange.strategy === 'foundational' && <span className="rounded bg-[#F2EFFF] px-1.5 py-0.5 text-[10px] text-[#6D4AFF]">基础优先</span>}
+          {timeRange.strategy === 'foundational' && <span className="rounded bg-[#FFF7ED] px-1.5 py-0.5 text-[10px] text-[#F97316]">基础优先</span>}
           <ChevronDown size={16} className="text-gray-400" />
         </button>
 
@@ -82,10 +82,10 @@ export default function ResearchFilters({ activeFilter, onFilterChange, timeRang
             <div className="my-4 border-t border-gray-100" />
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs font-medium text-gray-500">起始年份
-                <input type="number" min="1800" max="2100" value={fromYear} onChange={(e) => setFromYear(e.target.value)} placeholder="例如 1940" className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#6D4AFF]" />
+                <input type="number" min="1800" max="2100" value={fromYear} onChange={(e) => setFromYear(e.target.value)} placeholder="例如 1940" className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#F97316]" />
               </label>
               <label className="text-xs font-medium text-gray-500">结束年份
-                <input type="number" min="1800" max="2100" value={toYear} onChange={(e) => setToYear(e.target.value)} placeholder={String(currentYear)} className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#6D4AFF]" />
+                <input type="number" min="1800" max="2100" value={toYear} onChange={(e) => setToYear(e.target.value)} placeholder={String(currentYear)} className="mt-1.5 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#F97316]" />
               </label>
             </div>
             <label className="mt-3 flex items-start gap-2 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600">
@@ -101,7 +101,7 @@ export default function ResearchFilters({ activeFilter, onFilterChange, timeRang
                   toYear: toYear ? Number(toYear) : undefined,
                   strategy: foundational ? 'foundational' : 'relevance',
                 })}
-                className="rounded-lg bg-[#6D4AFF] px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                className="rounded-lg bg-[#F97316] px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
               >
                 应用范围
               </button>
@@ -114,5 +114,5 @@ export default function ResearchFilters({ activeFilter, onFilterChange, timeRang
 }
 
 function PresetButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-medium text-gray-600 hover:border-[#B9A8FF] hover:bg-[#F8F6FF] hover:text-[#6D4AFF]">{label}</button>;
+  return <button type="button" onClick={onClick} className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-2 text-xs font-medium text-gray-600 hover:border-[#FDBA74] hover:bg-[#FFF7ED] hover:text-[#F97316]">{label}</button>;
 }
