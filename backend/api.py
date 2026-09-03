@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 import uuid
 import json
@@ -24,7 +25,8 @@ from fetchers.openalex import OpenAlexClient
 from analyzer.graph_builder import GraphBuilder
 from analyzer.heuristic_engine import HeuristicEngine
 from analyzer.concept_genealogy import ConceptGenealogyEngine
-from analyzer.query_normalizer import normalize_query
+from analyzer.canonical_metadata import CanonicalMetadataResolver
+from analyzer.terminology_resolver import TerminologyResolver
 from core.logging_config import configure_logging
 from core.research_store import ResearchStore
 
@@ -69,11 +71,18 @@ builder = GraphBuilder(s2_client)
 openalex_client = OpenAlexClient()
 openalex_builder = GraphBuilder(openalex_client)
 engine = HeuristicEngine()
-genealogy_engine = ConceptGenealogyEngine(openalex_client)
-GENEALOGY_CACHE_VERSION = 3
+GENEALOGY_CACHE_VERSION = 6
 
 CACHE_DIR = Path(__file__).resolve().parent / "output"
 store = ResearchStore(os.getenv("RESEARCH_DB_PATH", "/app/data/research.db"))
+canonical_metadata = CanonicalMetadataResolver(store, openalex_client)
+genealogy_engine = ConceptGenealogyEngine(openalex_client, canonical_resolver=canonical_metadata)
+terminology_resolver = TerminologyResolver(store, openalex_client)
+
+
+def normalize_query(query: str, mode: str = "academic_en") -> dict[str, Any]:
+    """Route every research entry point through the self-learning terminology resolver."""
+    return terminology_resolver.normalize(query, mode)
 
 
 class ReadingListCreate(BaseModel):
@@ -98,6 +107,27 @@ class ProfileUpdate(BaseModel):
     role: str | None = Field(default=None, max_length=120)
     institution: str | None = Field(default=None, max_length=200)
     research_interests: str | None = Field(default=None, max_length=1000)
+
+
+class TermMappingCreate(BaseModel):
+    source_term: str = Field(min_length=1, max_length=300)
+    canonical_term: str = Field(min_length=1, max_length=300)
+    aliases: list[str] = Field(default_factory=list, max_length=40)
+    related_terms: list[str] = Field(default_factory=list, max_length=40)
+    historical_terms: list[str] = Field(default_factory=list, max_length=30)
+
+
+class TermMappingUpdate(BaseModel):
+    source_term: str | None = Field(default=None, min_length=1, max_length=300)
+    canonical_term: str | None = Field(default=None, min_length=1, max_length=300)
+    aliases: list[str] | None = Field(default=None, max_length=40)
+    related_terms: list[str] | None = Field(default=None, max_length=40)
+    historical_terms: list[str] | None = Field(default=None, max_length=30)
+    user_confirmed: bool | None = None
+
+
+class TermResolveRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=300)
 
 
 class NoteUpsert(BaseModel):
@@ -766,6 +796,83 @@ def normalize_search_query(
     language_mode: str = Query(default="academic_en", pattern="^(academic_en|original)$"),
 ):
     return normalize_query(query, language_mode)
+
+
+def _validate_term_list(values: list[str] | None, field: str) -> list[str] | None:
+    if values is None:
+        return None
+    cleaned: list[str] = []
+    for value in values:
+        item = str(value).strip()
+        if not item or len(item) > 300:
+            raise HTTPException(status_code=422, detail=f"invalid terminology field: {field}")
+        cleaned.append(item)
+    return cleaned
+
+
+@app.get("/api/terms")
+def list_terms(
+    query: str = Query(default="", max_length=300),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    return {"items": store.list_term_mappings(query, limit)}
+
+
+@app.post("/api/terms/resolve")
+def resolve_term(payload: TermResolveRequest):
+    try:
+        item = terminology_resolver.resolve_and_persist(payload.query)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except requests.RequestException as error:
+        raise _discovery_provider_error("terminology", error) from error
+    logger.info("terminology resolved source=%r canonical=%r", item["source_term"], item["canonical_term"])
+    return item
+
+
+@app.post("/api/terms")
+def create_term(payload: TermMappingCreate):
+    item = store.upsert_term_mapping(
+        {
+            "source_term": payload.source_term.strip(),
+            "source_language": "zh" if re.search(r"[\u3400-\u9fff]", payload.source_term) else "en",
+            "canonical_term": payload.canonical_term.strip(),
+            "canonical_language": "en",
+            "aliases": _validate_term_list(payload.aliases, "aliases") or [],
+            "related_terms": _validate_term_list(payload.related_terms, "related_terms") or [],
+            "historical_terms": _validate_term_list(payload.historical_terms, "historical_terms") or [],
+            "sources": ["user"],
+            "confidence": 1.0,
+            "user_confirmed": True,
+        }
+    )
+    return item
+
+
+@app.patch("/api/terms/{mapping_id}")
+def update_term(payload: TermMappingUpdate, mapping_id: int = ApiPath(ge=1)):
+    fields = payload.model_dump(exclude_unset=True)
+    for key in ("aliases", "related_terms", "historical_terms"):
+        if key in fields:
+            fields[key] = _validate_term_list(fields[key], key)
+    if "source_term" in fields:
+        fields["source_term"] = str(fields["source_term"]).strip()
+    if "canonical_term" in fields:
+        fields["canonical_term"] = str(fields["canonical_term"]).strip()
+    if fields.get("user_confirmed"):
+        fields["sources"] = ["user"]
+        fields["confidence"] = 1.0
+    item = store.update_term_mapping(mapping_id, fields)
+    if item is None:
+        raise HTTPException(status_code=404, detail="terminology mapping not found")
+    return item
+
+
+@app.delete("/api/terms/{mapping_id}")
+def delete_term(mapping_id: int = ApiPath(ge=1)):
+    if not store.delete_term_mapping(mapping_id):
+        raise HTTPException(status_code=404, detail="terminology mapping not found")
+    return {"status": "deleted"}
 
 
 @app.get("/api/genealogy")

@@ -153,6 +153,43 @@ class ResearchStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS term_mappings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    lookup_key TEXT NOT NULL UNIQUE,
+                    source_term TEXT NOT NULL,
+                    source_language TEXT NOT NULL DEFAULT 'zh',
+                    canonical_term TEXT NOT NULL,
+                    canonical_language TEXT NOT NULL DEFAULT 'en',
+                    aliases_json TEXT NOT NULL DEFAULT '[]',
+                    related_terms_json TEXT NOT NULL DEFAULT '[]',
+                    historical_terms_json TEXT NOT NULL DEFAULT '[]',
+                    sources_json TEXT NOT NULL DEFAULT '[]',
+                    confidence REAL NOT NULL DEFAULT 0,
+                    wikidata_id TEXT NOT NULL DEFAULT '',
+                    nist_term TEXT NOT NULL DEFAULT '',
+                    cso_topic TEXT NOT NULL DEFAULT '',
+                    openalex_hits INTEGER NOT NULL DEFAULT 0,
+                    user_confirmed INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    last_verified_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_term_mappings_updated ON term_mappings(updated_at DESC)"
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS canonical_metadata_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS auth_user (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     username TEXT NOT NULL UNIQUE,
@@ -190,6 +227,199 @@ class ResearchStore:
                     "INSERT INTO auth_user (id, username, password_hash, must_change_password) VALUES (1, ?, ?, 1)",
                     ("admin", self.hash_password("123456")),
                 )
+
+    @staticmethod
+    def _term_key(value: str) -> str:
+        return "".join(value.casefold().strip().split())
+
+    @staticmethod
+    def _row_to_term_mapping(row: sqlite3.Row) -> dict[str, Any]:
+        def load_list(column: str) -> list[str]:
+            try:
+                value = json.loads(row[column])
+            except (TypeError, json.JSONDecodeError):
+                return []
+            return [str(item) for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+        return {
+            "id": row["id"],
+            "source_term": row["source_term"],
+            "source_language": row["source_language"],
+            "canonical_term": row["canonical_term"],
+            "canonical_language": row["canonical_language"],
+            "aliases": load_list("aliases_json"),
+            "related_terms": load_list("related_terms_json"),
+            "historical_terms": load_list("historical_terms_json"),
+            "sources": load_list("sources_json"),
+            "confidence": float(row["confidence"]),
+            "wikidata_id": row["wikidata_id"],
+            "nist_term": row["nist_term"],
+            "cso_topic": row["cso_topic"],
+            "openalex_hits": int(row["openalex_hits"]),
+            "user_confirmed": bool(row["user_confirmed"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "last_verified_at": row["last_verified_at"],
+        }
+
+    def find_term_mapping(self, term: str) -> dict[str, Any] | None:
+        key = self._term_key(term)
+        if not key:
+            return None
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM term_mappings WHERE lookup_key = ?", (key,)).fetchone()
+            if row is not None:
+                return self._row_to_term_mapping(row)
+            rows = conn.execute(
+                "SELECT * FROM term_mappings ORDER BY user_confirmed DESC, confidence DESC, updated_at DESC LIMIT 1000"
+            ).fetchall()
+        for candidate in rows:
+            item = self._row_to_term_mapping(candidate)
+            if any(self._term_key(alias) == key for alias in item["aliases"]):
+                return item
+        return None
+
+    def list_term_mappings(self, query: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        bounded = max(1, min(int(limit), 500))
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM term_mappings ORDER BY user_confirmed DESC, confidence DESC, updated_at DESC LIMIT ?",
+                (bounded,),
+            ).fetchall()
+        items = [self._row_to_term_mapping(row) for row in rows]
+        needle = self._term_key(query)
+        if not needle:
+            return items
+        return [
+            item for item in items
+            if needle in self._term_key(item["source_term"])
+            or needle in self._term_key(item["canonical_term"])
+            or any(needle in self._term_key(alias) for alias in item["aliases"])
+        ]
+
+    def upsert_term_mapping(self, mapping: dict[str, Any]) -> dict[str, Any]:
+        source_term = str(mapping.get("source_term") or "").strip()
+        canonical_term = str(mapping.get("canonical_term") or "").strip()
+        if not source_term or not canonical_term:
+            raise ValueError("source_term and canonical_term are required")
+        lookup_key = self._term_key(source_term)
+        aliases = list(dict.fromkeys(str(item).strip() for item in mapping.get("aliases", []) if str(item).strip()))[:40]
+        related = list(dict.fromkeys(str(item).strip() for item in mapping.get("related_terms", []) if str(item).strip()))[:40]
+        historical = list(dict.fromkeys(str(item).strip() for item in mapping.get("historical_terms", []) if str(item).strip()))[:30]
+        sources = list(dict.fromkeys(str(item).strip() for item in mapping.get("sources", []) if str(item).strip()))[:12]
+        confidence = max(0.0, min(float(mapping.get("confidence") or 0), 1.0))
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO term_mappings (
+                    lookup_key, source_term, source_language, canonical_term, canonical_language,
+                    aliases_json, related_terms_json, historical_terms_json, sources_json,
+                    confidence, wikidata_id, nist_term, cso_topic, openalex_hits, user_confirmed,
+                    last_verified_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(lookup_key) DO UPDATE SET
+                    source_term = excluded.source_term,
+                    source_language = excluded.source_language,
+                    canonical_term = excluded.canonical_term,
+                    canonical_language = excluded.canonical_language,
+                    aliases_json = excluded.aliases_json,
+                    related_terms_json = excluded.related_terms_json,
+                    historical_terms_json = excluded.historical_terms_json,
+                    sources_json = excluded.sources_json,
+                    confidence = excluded.confidence,
+                    wikidata_id = excluded.wikidata_id,
+                    nist_term = excluded.nist_term,
+                    cso_topic = excluded.cso_topic,
+                    openalex_hits = excluded.openalex_hits,
+                    user_confirmed = MAX(term_mappings.user_confirmed, excluded.user_confirmed),
+                    updated_at = CURRENT_TIMESTAMP,
+                    last_verified_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    lookup_key,
+                    source_term,
+                    str(mapping.get("source_language") or "zh")[:20],
+                    canonical_term,
+                    str(mapping.get("canonical_language") or "en")[:20],
+                    json.dumps(aliases, ensure_ascii=False),
+                    json.dumps(related, ensure_ascii=False),
+                    json.dumps(historical, ensure_ascii=False),
+                    json.dumps(sources, ensure_ascii=False),
+                    confidence,
+                    str(mapping.get("wikidata_id") or "")[:40],
+                    str(mapping.get("nist_term") or "")[:200],
+                    str(mapping.get("cso_topic") or "")[:300],
+                    max(0, int(mapping.get("openalex_hits") or 0)),
+                    1 if mapping.get("user_confirmed") else 0,
+                ),
+            )
+            row = conn.execute("SELECT * FROM term_mappings WHERE lookup_key = ?", (lookup_key,)).fetchone()
+        if row is None:
+            raise RuntimeError("failed to persist terminology mapping")
+        return self._row_to_term_mapping(row)
+
+    def update_term_mapping(self, mapping_id: int, fields: dict[str, Any]) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM term_mappings WHERE id = ?", (mapping_id,)).fetchone()
+        if row is None:
+            return None
+        current = self._row_to_term_mapping(row)
+        merged = {
+            "source_term": fields.get("source_term", current["source_term"]),
+            "source_language": fields.get("source_language", current["source_language"]),
+            "canonical_term": fields.get("canonical_term", current["canonical_term"]),
+            "canonical_language": fields.get("canonical_language", current["canonical_language"]),
+            "aliases": fields.get("aliases", current["aliases"]),
+            "related_terms": fields.get("related_terms", current["related_terms"]),
+            "historical_terms": fields.get("historical_terms", current["historical_terms"]),
+            "sources": fields.get("sources", current["sources"]),
+            "confidence": fields.get("confidence", current["confidence"]),
+            "wikidata_id": fields.get("wikidata_id", current["wikidata_id"]),
+            "nist_term": fields.get("nist_term", current["nist_term"]),
+            "cso_topic": fields.get("cso_topic", current["cso_topic"]),
+            "openalex_hits": fields.get("openalex_hits", current["openalex_hits"]),
+            "user_confirmed": fields.get("user_confirmed", current["user_confirmed"]),
+        }
+        new_key = self._term_key(str(merged["source_term"]))
+        old_key = row["lookup_key"]
+        if new_key != old_key:
+            with self._lock, self._connect() as conn:
+                conn.execute("DELETE FROM term_mappings WHERE id = ?", (mapping_id,))
+        return self.upsert_term_mapping(merged)
+
+    def delete_term_mapping(self, mapping_id: int) -> bool:
+        with self._lock, self._connect() as conn:
+            cur = conn.execute("DELETE FROM term_mappings WHERE id = ?", (mapping_id,))
+        return cur.rowcount > 0
+
+    def get_canonical_metadata_cache(self, cache_key: str, max_age_days: int = 90) -> dict[str, Any] | None:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT payload_json FROM canonical_metadata_cache WHERE cache_key = ? AND updated_at >= ?",
+                (cache_key, cutoff),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row["payload_json"])
+        except json.JSONDecodeError:
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def upsert_canonical_metadata_cache(self, cache_key: str, payload: dict[str, Any]) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO canonical_metadata_cache (cache_key, payload_json, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(cache_key) DO UPDATE SET payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP
+                """,
+                (cache_key, json.dumps(payload, ensure_ascii=False)),
+            )
+            conn.execute(
+                "DELETE FROM canonical_metadata_cache WHERE cache_key NOT IN (SELECT cache_key FROM canonical_metadata_cache ORDER BY updated_at DESC LIMIT 500)"
+            )
 
     def list_reading(self) -> list[dict[str, Any]]:
         with self._connect() as conn:
@@ -734,6 +964,7 @@ class ResearchStore:
                 "user_profile": [dict(row) for row in conn.execute("SELECT * FROM user_profile").fetchall()],
                 "notes": [dict(row) for row in conn.execute("SELECT * FROM notes").fetchall()],
                 "paper_draw_history": [dict(row) for row in conn.execute("SELECT * FROM paper_draw_history").fetchall()],
+                "term_mappings": [dict(row) for row in conn.execute("SELECT * FROM term_mappings").fetchall()],
             }
         return {
             "format": "crypto-explorer-backup",
@@ -759,6 +990,12 @@ class ResearchStore:
             "user_profile": ["id", "display_name", "role", "institution", "research_interests", "updated_at"],
             "notes": ["paper_id", "paper_json", "title", "content", "created_at", "updated_at"],
             "paper_draw_history": ["id", "query", "paper_id", "paper_json", "reason", "created_at"],
+            "term_mappings": [
+                "id", "lookup_key", "source_term", "source_language", "canonical_term", "canonical_language",
+                "aliases_json", "related_terms_json", "historical_terms_json", "sources_json", "confidence",
+                "wikidata_id", "nist_term", "cso_topic", "openalex_hits", "user_confirmed",
+                "created_at", "updated_at", "last_verified_at",
+            ],
         }
         unknown_tables = set(tables) - set(allowed_columns)
         if unknown_tables:
@@ -853,6 +1090,33 @@ class ResearchStore:
                 raise ValueError("invalid draw query")
             if not isinstance(row["reason"], str) or len(row["reason"]) > 2000:
                 raise ValueError("invalid draw reason")
+        seen_term_ids: set[int] = set()
+        seen_term_keys: set[str] = set()
+        for row in normalized["term_mappings"]:
+            if not isinstance(row["id"], int) or row["id"] <= 0 or row["id"] in seen_term_ids:
+                raise ValueError("invalid terminology mapping id")
+            seen_term_ids.add(row["id"])
+            if not isinstance(row["lookup_key"], str) or not row["lookup_key"] or len(row["lookup_key"]) > 500 or row["lookup_key"] in seen_term_keys:
+                raise ValueError("invalid terminology lookup key")
+            seen_term_keys.add(row["lookup_key"])
+            for key, limit in (("source_term", 300), ("canonical_term", 300), ("wikidata_id", 40), ("nist_term", 200), ("cso_topic", 300)):
+                if not isinstance(row[key], str) or len(row[key]) > limit:
+                    raise ValueError(f"invalid terminology field: {key}")
+            if row["lookup_key"] != self._term_key(row["source_term"]):
+                raise ValueError("terminology lookup key does not match source term")
+            if row["source_language"] not in {"zh", "en", "mixed", "unknown"} or row["canonical_language"] not in {"en", "zh"}:
+                raise ValueError("invalid terminology language")
+            if not isinstance(row["confidence"], (int, float)) or not 0 <= float(row["confidence"]) <= 1:
+                raise ValueError("invalid terminology confidence")
+            if row["user_confirmed"] not in {0, 1, False, True}:
+                raise ValueError("invalid terminology confirmation")
+            for key in ("aliases_json", "related_terms_json", "historical_terms_json", "sources_json"):
+                try:
+                    values = json.loads(row[key])
+                except (TypeError, json.JSONDecodeError) as error:
+                    raise ValueError(f"invalid terminology json: {key}") from error
+                if not isinstance(values, list) or len(values) > 50 or any(not isinstance(value, str) or len(value) > 300 for value in values):
+                    raise ValueError(f"invalid terminology json: {key}")
 
         with self._lock, self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
@@ -862,6 +1126,7 @@ class ResearchStore:
                 conn.execute("DELETE FROM favorites")
                 conn.execute("DELETE FROM search_history")
                 conn.execute("DELETE FROM paper_draw_history")
+                conn.execute("DELETE FROM term_mappings")
                 conn.execute("DELETE FROM reading_list")
                 conn.execute("DELETE FROM user_profile")
 
@@ -873,8 +1138,9 @@ class ResearchStore:
                     "user_profile": "INSERT INTO user_profile (id, display_name, role, institution, research_interests, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "notes": "INSERT INTO notes (paper_id, paper_json, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "paper_draw_history": "INSERT INTO paper_draw_history (id, query, paper_id, paper_json, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "term_mappings": "INSERT INTO term_mappings (id, lookup_key, source_term, source_language, canonical_term, canonical_language, aliases_json, related_terms_json, historical_terms_json, sources_json, confidence, wikidata_id, nist_term, cso_topic, openalex_hits, user_confirmed, created_at, updated_at, last_verified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 }
-                for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes", "paper_draw_history"):
+                for table in ("reading_list", "reading_tasks", "favorites", "search_history", "user_profile", "notes", "paper_draw_history", "term_mappings"):
                     columns = allowed_columns[table]
                     for row in normalized[table]:
                         conn.execute(insert_sql[table], tuple(row[column] for column in columns))

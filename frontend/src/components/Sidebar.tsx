@@ -5,7 +5,7 @@ import {
   Network, Clock, GitMerge, BookOpen, 
   Search, Users, Building2, 
   FileText, Bookmark, PenTool,
-  Download, Dice5
+  Download, Dice5, Languages
 } from 'lucide-react';
 import { GraphData } from '../services/paperService';
 import { ResearchView, WorkspaceSection } from '../types/research';
@@ -75,6 +75,7 @@ export default function Sidebar({ graphData, viewMode, readingCount, favoriteCou
             <NavItem icon={<FileText size={18} />} label="我的论文" disabled />
             <NavItem icon={<Bookmark size={18} />} label="我的收藏" badge={favoriteCount} active={activeWorkspace === 'favorites'} onClick={() => onWorkspaceChange?.('favorites')} />
             <NavItem icon={<PenTool size={18} />} label="笔记" active={activeWorkspace === 'notes'} onClick={() => onWorkspaceChange?.('notes')} />
+            <NavItem icon={<Languages size={18} />} label="学术术语库" active={activeWorkspace === 'terms'} onClick={() => onWorkspaceChange?.('terms')} />
           </div>
         </div>
       </div>

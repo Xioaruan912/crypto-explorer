@@ -22,6 +22,10 @@ export interface Paper {
   pdfUrl?: string;
   semanticScholarUrl?: string;
   dblpUrl?: string;
+  sourceYear?: number;
+  sourceVenue?: string;
+  canonicalSource?: string;
+  canonicalConfidence?: string;
   contributionsZh?: string[];
   topicsZh?: string[];
 }

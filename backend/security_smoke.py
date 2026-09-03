@@ -81,6 +81,10 @@ def main() -> int:
             assert status == 401
             status, _ = request(opener, base, "/api/genealogy?query=test")
             assert status == 401
+            status, _ = request(opener, base, "/api/terms")
+            assert status == 401
+            status, _ = request(opener, base, "/api/terms/resolve", "POST", {"query": "side channel attack"})
+            assert status == 401
             status, _ = request(opener, base, "/api/paper-draw", "POST", {"query": "test"})
             assert status == 401
             status, _ = request(opener, base, "/docs")

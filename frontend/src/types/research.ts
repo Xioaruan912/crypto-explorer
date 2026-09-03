@@ -6,7 +6,7 @@ export type SearchLanguageMode = 'academic_en' | 'original';
 export type ReadingStatus = 'to_read' | 'reading' | 'done';
 export type ReadingTaskStatus = 'todo' | 'doing' | 'done';
 export type ReadingTaskType = 'read' | 'notes' | 'review' | 'reproduce' | 'custom';
-export type WorkspaceSection = 'help' | 'dashboard' | 'history' | 'favorites' | 'profile' | 'notes' | 'account';
+export type WorkspaceSection = 'help' | 'dashboard' | 'history' | 'favorites' | 'profile' | 'notes' | 'terms' | 'account';
 
 export interface ReadingListItem {
   paper: Paper;
@@ -56,7 +56,13 @@ export interface QueryInfo {
   translated: boolean;
   glossaryMatch?: string | null;
   confidence: 'direct' | 'high' | 'medium' | 'low';
+  confidenceScore?: number | null;
   notice: string;
+  resolutionStatus?: 'direct' | 'local' | 'bootstrap' | 'dynamic' | 'unresolved';
+  sources?: string[];
+  termMappingId?: number | null;
+  userConfirmed?: boolean;
+  aliases?: string[];
 }
 
 export interface UserProfile {
@@ -115,7 +121,12 @@ export interface GenealogyPaper {
 }
 
 export interface GenealogyStage {
-  stage: '前置基础' | '关键经典' | '概念开山' | '当前代表';
+  stage: '开山论文' | '早期奠基' | '关键演进' | '现代代表';
+  papers: GenealogyPaper[];
+}
+
+export interface GenealogyBranch {
+  name: string;
   papers: GenealogyPaper[];
 }
 
@@ -125,11 +136,34 @@ export interface GenealogyData {
   historicalQuery?: string | null;
   anchors: GenealogyPaper[];
   origin: GenealogyPaper | null;
+  background: GenealogyPaper[];
   prerequisites: GenealogyPaper[];
   classics: GenealogyPaper[];
   learningPath: GenealogyStage[];
+  branches: GenealogyBranch[];
   pool: GenealogyPaper[];
   poolCount: number;
+}
+
+export interface TermMapping {
+  id: number;
+  source_term: string;
+  source_language: string;
+  canonical_term: string;
+  canonical_language: string;
+  aliases: string[];
+  related_terms: string[];
+  historical_terms: string[];
+  sources: string[];
+  confidence: number;
+  wikidata_id: string;
+  nist_term: string;
+  cso_topic: string;
+  openalex_hits: number;
+  user_confirmed: boolean;
+  created_at: string;
+  updated_at: string;
+  last_verified_at: string;
 }
 
 export interface DrawHistoryItem {

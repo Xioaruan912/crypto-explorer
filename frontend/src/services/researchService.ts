@@ -10,6 +10,7 @@ import {
   ReadingTaskStatus,
   ReadingTaskType,
   SearchHistoryItem,
+  TermMapping,
   UserProfile,
 } from '../types/research';
 
@@ -197,6 +198,49 @@ export const researchService = {
 
   async removeNote(paperId: string): Promise<void> {
     const response = await authFetch(`/api/notes/${encodeURIComponent(paperId)}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error(await parseError(response));
+  },
+
+  async listTerms(query = '', limit = 200): Promise<TermMapping[]> {
+    const params = new URLSearchParams({ query, limit: String(limit) });
+    const response = await authFetch(`/api/terms?${params.toString()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(await parseError(response));
+    const body = await response.json() as { items: TermMapping[] };
+    return body.items;
+  },
+
+  async resolveTerm(query: string): Promise<TermMapping> {
+    const response = await authFetch('/api/terms/resolve', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!response.ok) throw new Error(await parseError(response));
+    return response.json();
+  },
+
+  async createTerm(input: { source_term: string; canonical_term: string; aliases?: string[]; related_terms?: string[]; historical_terms?: string[] }): Promise<TermMapping> {
+    const response = await authFetch('/api/terms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) throw new Error(await parseError(response));
+    return response.json();
+  },
+
+  async updateTerm(id: number, patch: Partial<Pick<TermMapping, 'source_term' | 'canonical_term' | 'aliases' | 'related_terms' | 'historical_terms' | 'user_confirmed'>>): Promise<TermMapping> {
+    const response = await authFetch(`/api/terms/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!response.ok) throw new Error(await parseError(response));
+    return response.json();
+  },
+
+  async deleteTerm(id: number): Promise<void> {
+    const response = await authFetch(`/api/terms/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error(await parseError(response));
   },
 };

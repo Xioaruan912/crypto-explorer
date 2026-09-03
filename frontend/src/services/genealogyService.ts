@@ -16,6 +16,11 @@ interface BackendWork {
   externalIds?: { DOI?: string | null };
   openAccessPdf?: { url?: string | null } | null;
   primaryTopic?: string | null;
+  sourceYear?: number | null;
+  sourceVenue?: string | null;
+  canonicalSource?: string | null;
+  canonicalConfidence?: string | null;
+  dblpUrl?: string | null;
 }
 
 interface BackendGenealogyPaper {
@@ -31,9 +36,11 @@ interface BackendGenealogyData {
   historicalQuery?: string | null;
   anchors: BackendGenealogyPaper[];
   origin: BackendGenealogyPaper | null;
+  background?: BackendGenealogyPaper[];
   prerequisites: BackendGenealogyPaper[];
   classics: BackendGenealogyPaper[];
   learningPath: { stage: GenealogyData['learningPath'][number]['stage']; papers: BackendGenealogyPaper[] }[];
+  branches?: { name: string; papers: BackendGenealogyPaper[] }[];
   pool: BackendGenealogyPaper[];
   poolCount: number;
 }
@@ -80,6 +87,11 @@ function mapWork(work: BackendWork): Paper {
     doi: work.externalIds?.DOI || undefined,
     pdfUrl: work.openAccessPdf?.url || undefined,
     semanticScholarUrl: work.url || undefined,
+    dblpUrl: work.dblpUrl || undefined,
+    sourceYear: work.sourceYear || undefined,
+    sourceVenue: work.sourceVenue || undefined,
+    canonicalSource: work.canonicalSource || undefined,
+    canonicalConfidence: work.canonicalConfidence || undefined,
     topicsZh: [work.primaryTopic || '', '基础论文'].filter(Boolean),
   };
 }
@@ -105,9 +117,11 @@ export const genealogyService = {
       ...body,
       anchors: body.anchors.map(mapItem),
       origin: body.origin ? mapItem(body.origin) : null,
+      background: (body.background || body.prerequisites || []).map(mapItem),
       prerequisites: body.prerequisites.map(mapItem),
       classics: body.classics.map(mapItem),
       learningPath: body.learningPath.map((stage) => ({ ...stage, papers: stage.papers.map(mapItem) })),
+      branches: (body.branches || []).map((branch) => ({ ...branch, papers: branch.papers.map(mapItem) })),
       pool: body.pool.map(mapItem),
     };
   },

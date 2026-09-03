@@ -18,6 +18,7 @@ import {
   Download,
   DatabaseBackup,
   KeyRound,
+  Languages,
   LogOut,
   PenTool,
   Save,
@@ -35,6 +36,7 @@ import {
   NoteItem,
   ReadingTask,
   SearchHistoryItem,
+  TermMapping,
   UserProfile,
   WorkspaceSection,
 } from '@/types/research';
@@ -57,6 +59,7 @@ const sectionMeta: Record<WorkspaceSection, { title: string; subtitle: string; i
   favorites: { title: '我的收藏', subtitle: '集中管理你标记的重要论文', icon: <Bookmark size={20} /> },
   profile: { title: '个人中心', subtitle: '维护研究者资料与研究方向', icon: <User size={20} /> },
   notes: { title: 'Markdown 笔记', subtitle: '集中管理与论文关联的本地 Markdown 阅读笔记', icon: <PenTool size={20} /> },
+  terms: { title: '学术术语库', subtitle: '管理中文 → 英文学术概念映射；系统会从开放知识库持续学习并允许你人工确认', icon: <Languages size={20} /> },
   account: { title: '账户管理', subtitle: '修改登录凭据、管理会话并导入/导出研究数据备份', icon: <User size={20} /> },
 };
 
@@ -78,6 +81,7 @@ export default function WorkspaceView({ section, favorites, onRunSearch, onSelec
       {section === 'favorites' && <FavoritesView favorites={favorites} onSelect={onSelectFavorite} onRemove={onRemoveFavorite} />}
       {section === 'profile' && <ProfileView />}
       {section === 'notes' && <NotesView />}
+      {section === 'terms' && <TermLibraryView />}
       {section === 'account' && <AccountView />}
     </div>
   );
@@ -92,7 +96,7 @@ function HelpView() {
     ['概念谱系与论文抽取', '“寻找开山论文”会沿参考文献向前追溯并结合历史术语；“论文抽取”先构建基础论文池，再均匀随机抽取，不设置稀有度。', FileSearch],
     ['阅读清单与每周 TODO', '把论文加入阅读库后，可按周一至周日安排“阅读、笔记、复习、复现”等任务，并独立跟踪完成状态。', BookOpenCheck],
     ['中文学术检索', '默认把常见中文密码学术语转换成规范英文检索词，并在结果上方展示实际检索词。需要中文文献时可切换为“原词”。', Search],
-    ['开山论文与学习路径', '“寻找开山论文”会沿参考文献向前追溯；“从基础开始学”按前置基础、关键经典、概念开山、当前代表组织阅读。', GitBranch],
+    ['开山论文与演化路径', '“寻找开山论文”先沿参考文献向过去追溯；“从开山开始学”确定起点后切换到 cited-by 向未来展开，按开山、早期奠基、关键演进、现代代表组织阅读。', GitBranch],
     ['收藏与历史', '收藏重要论文；成功搜索会自动写入历史记录，可随时重新执行。', Bookmark],
     ['数据持久化', '阅读清单、收藏、搜索历史与个人资料都会保存在 SQLite 中，容器重启后仍保留。', CheckCircle2],
   ] as const;
@@ -274,6 +278,105 @@ function NotesView() {
       <textarea value={selected.content} onChange={(e) => setSelected({ ...selected, content: e.target.value })} spellCheck={false} className="min-h-[470px] flex-1 resize-none rounded-xl border border-gray-200 bg-[#FCFCFD] p-4 font-mono text-sm leading-7 text-gray-700 outline-none focus:border-[#FDBA74] focus:ring-2 focus:ring-[#F97316]/10" />
       <div className="mt-4 flex items-center justify-between"><div className="text-xs text-gray-400">Markdown 原文 · {selected.content.length.toLocaleString()} 字符</div><button disabled={saving} onClick={saveSelected} className="flex items-center gap-2 rounded-lg bg-[#F97316] px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50"><Save size={15} />{saving ? '保存中...' : '保存笔记'}</button></div>
     </div>}
+  </div>;
+}
+
+function TermLibraryView() {
+  const [items, setItems] = useState<TermMapping[]>([]);
+  const [filter, setFilter] = useState('');
+  const [resolveInput, setResolveInput] = useState('');
+  const [selected, setSelected] = useState<TermMapping | null>(null);
+  const [sourceTerm, setSourceTerm] = useState('');
+  const [canonicalTerm, setCanonicalTerm] = useState('');
+  const [aliasesText, setAliasesText] = useState('');
+  const [relatedText, setRelatedText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  const load = async (query = filter) => {
+    try {
+      setItems(await researchService.listTerms(query));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '术语库加载失败');
+    }
+  };
+
+  useEffect(() => {
+    let active = true;
+    researchService.listTerms('', 200)
+      .then((result) => { if (active) setItems(result); })
+      .catch((e) => { if (active) setError(e instanceof Error ? e.message : '术语库加载失败'); });
+    return () => { active = false; };
+  }, []);
+
+  const openEdit = (item: TermMapping) => {
+    setSelected(item);
+    setSourceTerm(item.source_term);
+    setCanonicalTerm(item.canonical_term);
+    setAliasesText(item.aliases.join(', '));
+    setRelatedText(item.related_terms.join(', '));
+    setError('');
+    setMessage('');
+  };
+
+  const splitTerms = (value: string) => value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean);
+
+  const resolveOnline = async () => {
+    const query = resolveInput.trim();
+    if (!query) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const item = await researchService.resolveTerm(query);
+      setResolveInput('');
+      setMessage(`已解析：${item.source_term} → ${item.canonical_term}`);
+      await load('');
+      openEdit(item);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '在线解析失败');
+    } finally { setBusy(false); }
+  };
+
+  const save = async () => {
+    if (!selected || !sourceTerm.trim() || !canonicalTerm.trim()) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const updated = await researchService.updateTerm(selected.id, {
+        source_term: sourceTerm.trim(),
+        canonical_term: canonicalTerm.trim(),
+        aliases: splitTerms(aliasesText),
+        related_terms: splitTerms(relatedText),
+        user_confirmed: true,
+      });
+      setSelected(updated);
+      setMessage('术语映射已人工确认；之后检索会优先使用这一版本。');
+      await load(filter);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存失败');
+    } finally { setBusy(false); }
+  };
+
+  return <div className="space-y-5">
+    {error && <ErrorBox text={error} />}
+    {message && <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{message}</div>}
+    <div className="rounded-xl border border-[#FED7AA] bg-[#FFF9F2] p-5">
+      <div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[#F97316]"><Languages size={19} /></div><div><div className="font-semibold text-gray-900">不是一份写死的中文词典</div><p className="mt-1 text-sm leading-6 text-gray-600">系统先查你已经确认/学会的 SQLite 术语，再尝试中文 Wikipedia / Wikidata 跨语言实体、CSO 3.5、NIST CSRC 与 OpenAlex 学术语料验证。高置信度结果会自动缓存，之后离线也能直接命中。</p></div></div>
+      <div className="mt-4 flex gap-2"><input value={resolveInput} onChange={(e) => setResolveInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void resolveOnline(); }} placeholder="例如：侧信道攻击、差分功耗分析、故障攻击" className="min-w-0 flex-1 rounded-lg border border-[#FED7AA] bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F97316]" /><button disabled={busy || !resolveInput.trim()} onClick={() => void resolveOnline()} className="rounded-lg bg-[#F97316] px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40">在线解析并学习</button></div>
+    </div>
+
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
+      <div className="rounded-xl border border-gray-200 bg-white">
+        <div className="flex items-center gap-2 border-b border-gray-100 p-4"><Search size={16} className="text-gray-400" /><input value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void load(); }} placeholder="筛选中文、英文或别名" className="min-w-0 flex-1 text-sm outline-none" /><button onClick={() => void load()} className="text-xs font-medium text-[#F97316]">筛选</button></div>
+        <div className="max-h-[620px] divide-y divide-gray-100 overflow-y-auto">{items.length ? items.map((item) => <button key={item.id} onClick={() => openEdit(item)} className={`w-full p-4 text-left transition hover:bg-gray-50 ${selected?.id === item.id ? 'bg-[#FFF7ED]' : ''}`}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-gray-900">{item.source_term}</span><span className="text-gray-300">→</span><span className="font-semibold text-[#EA580C]">{item.canonical_term}</span>{item.user_confirmed && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">已确认</span>}</div><div className="mt-1 truncate text-xs text-gray-400">{item.sources.join(' · ') || '本地'}{item.cso_topic ? ` · CSO: ${item.cso_topic}` : ''}</div></div><div className="shrink-0 text-xs font-semibold text-gray-400">{Math.round(item.confidence * 100)}%</div></div></button>) : <Empty text="术语库还是空的；可以在上方输入中文术语让系统在线解析。" />}</div>
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-5">{selected ? <>
+        <div className="mb-4"><div className="font-semibold text-gray-900">编辑 / 确认映射</div><div className="mt-1 text-xs text-gray-400">人工确认后的映射优先级最高，不会被后续自动解析覆盖。</div></div>
+        <div className="space-y-4"><Field label="中文 / 原始术语" value={sourceTerm} onChange={setSourceTerm} /><Field label="规范英文学术术语" value={canonicalTerm} onChange={setCanonicalTerm} /><div><label className="mb-2 block text-sm font-medium text-gray-700">别名（逗号或换行分隔）</label><textarea value={aliasesText} onChange={(e) => setAliasesText(e.target.value)} rows={4} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F97316]" /></div><div><label className="mb-2 block text-sm font-medium text-gray-700">相关学术术语</label><textarea value={relatedText} onChange={(e) => setRelatedText(e.target.value)} rows={4} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#F97316]" /></div></div>
+        <div className="mt-4 rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-500"><div>证据：{selected.sources.join(' / ') || '本地'}</div>{selected.wikidata_id && <div>Wikidata：{selected.wikidata_id}</div>}{selected.nist_term && <div>NIST：{selected.nist_term}</div>}{selected.cso_topic && <div>CSO：{selected.cso_topic}</div>}<div>OpenAlex 样本：{selected.openalex_hits} 篇</div></div>
+        <div className="mt-5 flex gap-2"><button disabled={busy} onClick={() => void save()} className="flex items-center gap-2 rounded-lg bg-[#F97316] px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-40"><Save size={15} />保存并确认</button><button disabled={busy} onClick={async () => { if (!window.confirm('删除这条术语映射？之后系统可能会重新在线解析。')) return; setBusy(true); try { await researchService.deleteTerm(selected.id); setSelected(null); await load(filter); } catch (e) { setError(e instanceof Error ? e.message : '删除失败'); } finally { setBusy(false); } }} className="flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"><Trash2 size={15} />删除</button></div>
+      </> : <div className="flex min-h-64 flex-col items-center justify-center text-center text-sm text-gray-400"><Languages size={28} className="mb-3 text-gray-300" /><div className="font-medium text-gray-500">选择一条术语映射</div><div className="mt-1 max-w-xs text-xs leading-5">你可以修正英文术语、增加中文别名，并把它标记为人工确认。</div></div>}</div>
+    </div>
   </div>;
 }
 

@@ -332,7 +332,7 @@ export default function Home() {
                 {([
                   ['related', '相关论文'],
                   ['origin', '寻找开山论文'],
-                  ['learning', '从基础开始学'],
+                  ['learning', '从开山开始学'],
                 ] as const).map(([mode, label]) => (
                   <button
                     key={mode}

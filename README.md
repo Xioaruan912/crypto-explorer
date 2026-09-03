@@ -10,8 +10,10 @@
 - **文献图谱**：从种子论文展开引用关系，支持分类筛选和节点详情。
 - **研究时间线**：按年份观察研究演化，并支持自定义年份范围。
 - **早期基础论文探索**：提供“经典基础 / 基础论文优先”策略，可回溯早期高相关论文。
-- **中文学术检索**：检测到常见中文密码学术语时，默认转换成规范英文学术检索词，并明确展示实际检索词、相关术语和历史术语；也可随时切换为原词检索。
-- **概念谱系 / 开山论文**：从现代锚点沿参考文献向前追溯，区分前置基础、关键经典、概念开山和当前代表论文。
+- **自学习学术术语解析**：中文查询优先使用本地 SQLite 已确认映射；未知术语可通过中文 Wikipedia / Wikidata、CSO、NIST 与 OpenAlex 交叉验证后学习并缓存。用户可在“学术术语库”中修正英文术语、增加别名和人工确认。
+- **概念谱系 / 开山论文**：先从现代锚点沿 references 向过去寻找概念源头；确定开山论文后切换到 cited-by 向未来展开。
+- **从开山开始学**：默认主线为“开山论文 → 早期奠基 → 关键演进 → 现代代表”，时间只向前；开山之前的理论依赖改成可选背景，不再混入默认主线。
+- **规范文献元数据**：学习路径中的关键论文会使用 DBLP / Crossref 等来源校正文献重印年份、会议与 DOI，并保留原数据源年份用于透明比对。
 - **基础论文抽取**：先构建密码学基础论文候选池，再均匀随机抽取；不设置稀有度或概率等级，并尽量避开最近 10 次重复论文。
 - **引文网络**：查看当前研究子图的直接关系、入度/出度和关键节点。
 - **论文检索**：关键词、作者、会议/期刊、年份、Open Access 与排序筛选。
@@ -106,6 +108,7 @@ ENABLE_EPRINT_LOOKUP=false
 SEMANTIC_SCHOLAR_API_KEY=
 OPENALEX_API_KEY=
 OPENALEX_MAILTO=
+CROSSREF_MAILTO=
 SESSION_TTL_HOURS=720
 SESSION_RENEW_BEFORE_HOURS=168
 COOKIE_SECURE=false
@@ -121,6 +124,7 @@ MAX_REQUEST_BYTES=6291456
 | `SEMANTIC_SCHOLAR_API_KEY` | 空 | 可选；未配置时仍可通过 OpenAlex 容错 |
 | `OPENALEX_API_KEY` | 空 | 可选；频繁使用概念谱系时建议配置以提升 OpenAlex 配额 |
 | `OPENALEX_MAILTO` | 空 | 可选；OpenAlex polite pool 联系邮箱 |
+| `CROSSREF_MAILTO` | 空 | 可选；Crossref 文献元数据查询联系邮箱，未设置时也可工作 |
 | `SESSION_TTL_HOURS` | `720` | 登录会话有效时长，默认 30 天 |
 | `SESSION_RENEW_BEFORE_HOURS` | `168` | 会话剩余不足该时长时自动续期，默认剩余 7 天时续回 30 天 |
 | `COOKIE_SECURE` | `false` | HTTPS 部署时应设置为 `true` |
@@ -157,12 +161,13 @@ CRYPTO_EXPLORER_DATA_DIR=/srv/crypto-explorer/data
 - 收藏
 - 搜索历史
 - 搜索时的原始中文词、实际学术检索词、语言模式和规范化术语
+- 自学习的中文 / 英文学术术语映射、别名、来源证据和人工确认结果
 - 论文随机抽取历史
 - 用户资料
 - Markdown 论文笔记
 - 登录账号、密码哈希和会话（不会被备份导出）
 
-账户页支持导出 / 导入研究备份。备份格式包含阅读清单、每周 TODO、收藏、搜索历史、论文抽取历史、个人资料和 Markdown 笔记，不包含密码哈希、Cookie 或服务器会话。概念谱系缓存属于可再生成的派生数据，不进入备份。
+账户页支持导出 / 导入研究备份。备份格式包含阅读清单、每周 TODO、收藏、搜索历史、论文抽取历史、个人资料、Markdown 笔记和已经学习/确认的学术术语映射，不包含密码哈希、Cookie 或服务器会话。概念谱系与规范元数据缓存属于可再生成的派生数据，不进入备份。
 
 数据库、`.env`、日志和备份文件默认被 `.gitignore` 排除，不应提交到 GitHub。
 
@@ -219,6 +224,10 @@ crypto-explorer/
 
 论文 / 作者 / 会议期刊检索主要由 OpenAlex 提供实时数据。
 
+中文术语解析会组合本地 SQLite、中文 Wikipedia / Wikidata 跨语言实体、Computer Science Ontology (CSO 3.5)、NIST CSRC 与 OpenAlex 学术语料证据；高置信度结果会写入本地术语库。CSO 数据遵循其发布的 CC BY 4.0 许可，Wikidata 结构化数据为 CC0。
+
+学习路径中的关键文献会使用 DBLP 与 Crossref 进行规范元数据校验，以优先显示论文的原始发表年份而不是后续 reprint / 电子版年份。
+
 ## CI
 
 GitHub Actions 会在 `main` push 和 Pull Request 上执行：
@@ -226,8 +235,9 @@ GitHub Actions 会在 `main` push 和 Pull Request 上执行：
 1. Frontend `npm ci` / lint / production build
 2. Backend dependency audit / Bandit static scan / Python compile / FastAPI import smoke test
 3. Backend authentication / CSRF / session / backup security regression smoke test
-4. Concept Genealogy 与中文英文学术检索规范化回归测试
-5. Docker Compose config / image build
+4. Concept Genealogy、开山后前向演化与中文学术查询回归测试
+5. 自学习术语解析与规范文献元数据回归测试
+6. Docker Compose config / image build
 
 ## 安全
 

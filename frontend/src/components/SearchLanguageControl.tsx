@@ -56,6 +56,16 @@ export function QueryLanguageNotice({ info, className = '' }: { info: QueryInfo 
           历史术语辅助：{info.historicalTerms.join(' · ')}
         </div>
       )}
+      {!!info.sources?.length && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400">
+          <span>术语证据：{info.sources.join(' · ')}</span>
+          {typeof info.confidenceScore === 'number' && <span className="font-medium text-[#EA580C]">置信度 {Math.round(info.confidenceScore * 100)}%</span>}
+          {info.userConfirmed && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-600">已人工确认</span>}
+        </div>
+      )}
+      {info.resolutionStatus === 'unresolved' && (
+        <div className="mt-1.5 text-[11px] text-gray-400">可在左侧“学术术语库”中执行在线解析、补充别名或人工指定规范英文术语。</div>
+      )}
     </div>
   );
 }

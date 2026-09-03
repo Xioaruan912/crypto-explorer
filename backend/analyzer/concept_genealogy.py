@@ -1,12 +1,18 @@
 import math
+import logging
 import re
 import threading
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
+from analyzer.canonical_metadata import CanonicalMetadataResolver
 from fetchers.openalex import OpenAlexClient
+
+
+logger = logging.getLogger("crypto_explorer.concept_genealogy")
 
 
 STOPWORDS = {
@@ -143,8 +149,14 @@ class Candidate:
 class ConceptGenealogyEngine:
     """Discover conceptual ancestors instead of relying on literal keyword matches."""
 
-    def __init__(self, client: OpenAlexClient, cache_ttl: int = 900) -> None:
+    def __init__(
+        self,
+        client: OpenAlexClient,
+        cache_ttl: int = 900,
+        canonical_resolver: CanonicalMetadataResolver | None = None,
+    ) -> None:
         self.client = client
+        self.canonical_resolver = canonical_resolver
         self.cache_ttl = cache_ttl
         self._cache: dict[tuple[Any, ...], tuple[float, dict[str, Any]]] = {}
         self._cache_lock = threading.Lock()
@@ -269,9 +281,9 @@ class ConceptGenealogyEngine:
             # Keyword-only noise is common for terms such as "anamorphic signature".
             if not crypto and candidate.distance == 0:
                 continue
+            coverage = len(candidate.anchors) / max(1, len(anchor_ids))
             if candidate.distance == 2 and not _title_crypto_like(work) and coverage < 0.4:
                 continue
-            coverage = len(candidate.anchors) / max(1, len(anchor_ids))
             rank_score = 0.0 if candidate.search_rank is None else max(0.0, 1 - (candidate.search_rank - 1) / 30)
             distance_score = {0: 0.2, 1: 1.0, 2: 0.72}.get(candidate.distance, 0.0)
             score = (
@@ -308,6 +320,8 @@ class ConceptGenealogyEngine:
                 f"系统将现代关键词映射到历史术语“{historical_query}”，"
                 "再结合引用谱系确认这篇论文是更合适的概念源头。"
             )
+        if origin and self.canonical_resolver is not None:
+            origin["paper"] = self.canonical_resolver.canonicalize(origin["paper"])
         origin_id = origin["paper"]["paperId"] if origin else None
         origin_year = origin["paper"].get("year") if origin else None
         ancestors = [
@@ -322,27 +336,29 @@ class ConceptGenealogyEngine:
         if len(prerequisites) < 2:
             prerequisites.extend(item for item in ancestors if item not in prerequisites)
             prerequisites = prerequisites[:2]
-        remaining = [item for item in ancestors if item not in prerequisites]
-        classics = sorted(
-            remaining,
-            key=lambda item: (item["paper"].get("year") or 0, item["paper"].get("citationCount") or 0),
-            reverse=True,
-        )[:2]
-        current = [self._current_payload(work) for work in anchors[:3]]
+
+        evolution = self._build_forward_evolution(
+            query,
+            origin,
+            anchors,
+            from_year=from_year,
+            to_year=to_year,
+        )
+        learning_path = evolution["learningPath"]
+        forward_papers = [paper for stage in learning_path[1:] for paper in stage["papers"]]
+        classics = forward_papers[:3]
+        current = evolution["current"] or [self._current_payload(work) for work in anchors[:3]]
 
         result = {
             "query": query,
             "historicalQuery": historical_query,
             "anchors": current,
             "origin": origin,
+            "background": prerequisites,
             "prerequisites": prerequisites,
             "classics": classics,
-            "learningPath": [
-                {"stage": "前置基础", "papers": prerequisites[:2]},
-                {"stage": "关键经典", "papers": classics[:2]},
-                {"stage": "概念开山", "papers": [origin] if origin else []},
-                {"stage": "当前代表", "papers": current[:2]},
-            ],
+            "learningPath": learning_path,
+            "branches": evolution["branches"],
             "pool": pool,
             "poolCount": len(pool),
         }
@@ -352,6 +368,294 @@ class ConceptGenealogyEngine:
                 self._cache.pop(oldest, None)
             self._cache[key] = (time.time(), result)
         return result
+
+    def _build_forward_evolution(
+        self,
+        query: str,
+        origin: dict[str, Any] | None,
+        anchors: list[dict[str, Any]],
+        from_year: int | None,
+        to_year: int | None,
+    ) -> dict[str, Any]:
+        """After finding the origin, switch direction and follow cited-by edges forward.
+
+        Genealogy answers "where did this concept come from?". This method answers
+        the separate learning question "what happened after the origin?" and keeps
+        the default reading path chronological by construction.
+        """
+        empty_path = [
+            {"stage": "开山论文", "papers": [origin] if origin else []},
+            {"stage": "早期奠基", "papers": []},
+            {"stage": "关键演进", "papers": []},
+            {"stage": "现代代表", "papers": []},
+        ]
+        if not origin:
+            return {"learningPath": empty_path, "branches": [], "current": []}
+
+        origin_work = origin["paper"]
+        origin_id = str(origin_work.get("paperId") or "")
+        origin_year = int(origin_work.get("year") or 0)
+        if not origin_id or not origin_year:
+            return {"learningPath": empty_path, "branches": [], "current": []}
+
+        candidate_meta: dict[str, dict[str, Any]] = {}
+
+        def add_work(work: dict[str, Any], distance: int) -> None:
+            work_id = str(work.get("paperId") or "")
+            year = work.get("year")
+            if not work_id or work_id == origin_id or not year:
+                return
+            if year < origin_year:
+                return
+            if from_year is not None and year < from_year:
+                return
+            if to_year is not None and year > to_year:
+                return
+            if not _crypto_like(work):
+                return
+            existing = candidate_meta.get(work_id)
+            if existing is None or distance < existing["distance"]:
+                candidate_meta[work_id] = {"work": work, "distance": distance}
+
+        get_citations = getattr(self.client, "get_citations", None)
+        direct: list[dict[str, Any]] = []
+        if callable(get_citations):
+            try:
+                direct = list(get_citations(origin_id, limit=100))
+            except Exception:
+                direct = []
+        if not direct:
+            direct = [work for work in anchors if (work.get("year") or 0) >= origin_year]
+        for work in direct:
+            add_work(work, 1)
+
+        # Follow a bounded second hop from high-impact/relevant direct descendants.
+        if callable(get_citations):
+            expansion_parents = sorted(
+                [item["work"] for item in candidate_meta.values() if item["distance"] == 1],
+                key=lambda work: (
+                    _query_overlap(query, work) * 0.45
+                    + _citation_score(int(work.get("citationCount") or 0)) * 0.35
+                    + (0.20 if _title_crypto_like(work) else 0),
+                ),
+                reverse=True,
+            )[:3]
+            for parent in expansion_parents:
+                try:
+                    descendants = get_citations(str(parent["paperId"]), limit=40)
+                except Exception:
+                    logger.warning("forward genealogy expansion failed paper_id=%s", parent.get("paperId"), exc_info=True)
+                    continue
+                for work in descendants:
+                    add_work(work, 2)
+
+        # Ensure current semantic anchors are represented even when they do not
+        # directly cite the origin in OpenAlex's current top result window.
+        for work in anchors:
+            add_work(work, 2)
+
+        if not candidate_meta:
+            return {"learningPath": empty_path, "branches": [], "current": []}
+
+        downstream: Counter[str] = Counter()
+        candidate_ids = set(candidate_meta)
+        for item in candidate_meta.values():
+            for ref_id in item["work"].get("referencedWorkIds") or []:
+                if ref_id in candidate_ids:
+                    downstream[ref_id] += 1
+
+        scored: list[dict[str, Any]] = []
+        for work_id, item in candidate_meta.items():
+            work = item["work"]
+            distance = int(item["distance"])
+            bridge_score = min(1.0, downstream[work_id] / 6)
+            relevance = max(_query_overlap(query, work), _query_overlap(str(origin_work.get("title") or ""), work) * 0.6)
+            influence = _citation_score(int(work.get("citationCount") or 0))
+            distance_score = 1.0 if distance == 1 else 0.72
+            score = (
+                relevance * 0.30
+                + influence * 0.24
+                + bridge_score * 0.22
+                + distance_score * 0.12
+                + (0.08 if _title_crypto_like(work) else 0.0)
+                + 0.04
+            )
+            scored.append(
+                {
+                    "work": work,
+                    "distance": distance,
+                    "bridge": int(downstream[work_id]),
+                    "score": score,
+                }
+            )
+        scored.sort(key=lambda item: item["score"], reverse=True)
+
+        # Canonicalize only the strongest milestone candidates. This fixes reprint
+        # years before stage assignment without multiplying external metadata calls.
+        shortlist: list[dict[str, Any]] = []
+        seen_titles: set[str] = set()
+        for item in scored:
+            title_key = " ".join(str(item["work"].get("title") or "").casefold().split())
+            if not title_key or title_key in seen_titles:
+                continue
+            seen_titles.add(title_key)
+            work = item["work"]
+            if self.canonical_resolver is not None and len(shortlist) < 12:
+                try:
+                    work = self.canonical_resolver.canonicalize(work)
+                except Exception:
+                    logger.warning("canonical metadata fallback title=%r", work.get("title"), exc_info=True)
+            if work.get("isReprintLike"):
+                logger.info(
+                    "excluding unresolved reprint-like milestone title=%r source_year=%s candidate_year=%s",
+                    work.get("title"),
+                    work.get("sourceYear"),
+                    work.get("year"),
+                )
+                continue
+            canonical_year = int(work.get("year") or 0)
+            if canonical_year < origin_year:
+                continue
+            if from_year is not None and canonical_year < from_year:
+                continue
+            if to_year is not None and canonical_year > to_year:
+                continue
+            shortlist.append({**item, "work": work})
+            if len(shortlist) >= 20:
+                break
+
+        current_year = datetime.now(timezone.utc).year
+        early_end = min(current_year, origin_year + 12)
+        modern_start = max(origin_year + 1, current_year - 8)
+        selected_ids: set[str] = set()
+
+        def choose(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+            ranked = sorted(items, key=lambda item: item["score"], reverse=True)[:limit]
+            ranked.sort(key=lambda item: (item["work"].get("year") or 9999, -int(item["work"].get("citationCount") or 0)))
+            result: list[dict[str, Any]] = []
+            for item in ranked:
+                work_id = str(item["work"]["paperId"])
+                if work_id in selected_ids:
+                    continue
+                selected_ids.add(work_id)
+                result.append(item)
+            return result
+
+        early = choose(
+            [item for item in shortlist if origin_year < int(item["work"].get("year") or 0) <= early_end],
+            3,
+        )
+        key = choose(
+            [item for item in shortlist if int(item["work"].get("year") or 0) > early_end and int(item["work"].get("year") or 0) < modern_start],
+            4,
+        )
+        modern = choose(
+            [item for item in shortlist if int(item["work"].get("year") or 0) >= modern_start],
+            3,
+        )
+
+        # For short-lived/new concepts some time bands are naturally empty. Fill
+        # the middle stage with the strongest remaining chronological milestones.
+        if not key:
+            leftovers = [
+                item for item in shortlist
+                if str(item["work"]["paperId"]) not in selected_ids
+                and int(item["work"].get("year") or 0) > origin_year
+            ]
+            key = choose(leftovers, 3)
+
+        if not modern:
+            previous_years = [
+                int(item["work"].get("year") or 0)
+                for item in [*early, *key]
+                if item["work"].get("year")
+            ]
+            after_year = max(previous_years, default=origin_year)
+            latest_pool = [
+                item for item in shortlist
+                if str(item["work"]["paperId"]) not in selected_ids
+                and int(item["work"].get("year") or 0) > after_year
+            ]
+            latest_pool.sort(
+                key=lambda item: (int(item["work"].get("year") or 0), float(item.get("score") or 0)),
+                reverse=True,
+            )
+            modern = choose(latest_pool[:10], 3)
+
+        def payloads(items: list[dict[str, Any]], stage: str) -> list[dict[str, Any]]:
+            return [self._forward_payload(query, item, origin_year, stage) for item in items]
+
+        origin_stage = [{**origin, "reason": origin.get("reason") or "这是当前主题证据最强的概念开山论文。"}]
+        learning_path = [
+            {"stage": "开山论文", "papers": origin_stage},
+            {"stage": "早期奠基", "papers": payloads(early, "早期奠基")},
+            {"stage": "关键演进", "papers": payloads(key, "关键演进")},
+            {"stage": "现代代表", "papers": payloads(modern, "现代代表")},
+        ]
+
+        # Defensive monotonicity check. Canonical metadata can move a reprint back
+        # decades, so enforce chronological order after canonicalization.
+        last_year = origin_year
+        for stage in learning_path[1:]:
+            stage["papers"] = [paper for paper in stage["papers"] if int(paper["paper"].get("year") or 0) >= last_year]
+            stage["papers"].sort(key=lambda paper: int(paper["paper"].get("year") or 9999))
+            if stage["papers"]:
+                last_year = int(stage["papers"][-1]["paper"].get("year") or last_year)
+
+        used_ids = {
+            str(paper["paper"]["paperId"])
+            for stage in learning_path
+            for paper in stage["papers"]
+        }
+        branch_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for item in shortlist:
+            work = item["work"]
+            if str(work["paperId"]) in used_ids:
+                continue
+            topic = str(work.get("primaryTopic") or "").strip()
+            if not topic:
+                continue
+            branch_groups[topic].append(item)
+        branches: list[dict[str, Any]] = []
+        for topic, items in sorted(
+            branch_groups.items(),
+            key=lambda pair: max(item["score"] for item in pair[1]),
+            reverse=True,
+        )[:4]:
+            branches.append(
+                {
+                    "name": topic,
+                    "papers": payloads(sorted(items, key=lambda item: item["score"], reverse=True)[:2], "重要分支"),
+                }
+            )
+
+        current = learning_path[-1]["papers"]
+        if not current:
+            latest = sorted(shortlist, key=lambda item: int(item["work"].get("year") or 0), reverse=True)[:3]
+            current = payloads(latest, "现代代表")
+        return {"learningPath": learning_path, "branches": branches, "current": current}
+
+    @staticmethod
+    def _forward_payload(query: str, item: dict[str, Any], origin_year: int, stage: str) -> dict[str, Any]:
+        work = item["work"]
+        year = int(work.get("year") or origin_year)
+        bridge = int(item.get("bridge") or 0)
+        distance = int(item.get("distance") or 1)
+        reason = f"开山论文之后 {max(0, year - origin_year)} 年出现，属于“{stage}”阶段。"
+        if distance == 1:
+            reason += " 它直接引用或承接了开山论文。"
+        else:
+            reason += f" 它位于开山论文向后的 {distance} 层引用演化中。"
+        if bridge:
+            reason += f" 在当前候选子图中还有 {bridge} 篇后续工作继续沿用它。"
+        return {
+            "paper": _public_work(work),
+            "distance": distance,
+            "anchorCoverage": bridge,
+            "reason": reason,
+            "drawEligible": _draw_eligible(work),
+            "milestoneScore": round(float(item.get("score") or 0), 4),
+        }
 
     def _choose_origin(
         self,
