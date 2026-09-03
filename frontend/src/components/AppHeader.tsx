@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { Search, HelpCircle, LayoutDashboard, History, Bookmark, User, Share2 } from 'lucide-react';
-import { WorkspaceSection } from '../types/research';
+import { SearchLanguageMode, WorkspaceSection } from '../types/research';
+import { SearchLanguageToggle } from './SearchLanguageControl';
 
 interface AppHeaderProps {
   onSearch?: (query: string) => void;
   activeWorkspace?: WorkspaceSection | null;
   onWorkspaceChange?: (section: WorkspaceSection) => void;
+  searchLanguageMode: SearchLanguageMode;
+  onSearchLanguageModeChange: (mode: SearchLanguageMode) => void;
 }
 
-export default function AppHeader({ onSearch, activeWorkspace, onWorkspaceChange }: AppHeaderProps) {
+export default function AppHeader({ onSearch, activeWorkspace, onWorkspaceChange, searchLanguageMode, onSearchLanguageModeChange }: AppHeaderProps) {
   const [query, setQuery] = useState('');
 
   const handleSearch = (e: React.FormEvent) => {
@@ -27,8 +30,8 @@ export default function AppHeader({ onSearch, activeWorkspace, onWorkspaceChange
         <span className="font-semibold text-lg text-gray-900 tracking-tight">密码学研究图谱</span>
       </div>
 
-      <div className="flex-1 max-w-2xl px-8 flex items-center">
-        <form onSubmit={handleSearch} className="relative w-full flex items-center">
+      <div className="flex flex-1 items-center justify-center gap-2 px-8">
+        <form onSubmit={handleSearch} className="relative w-full max-w-2xl flex items-center">
           <div className="absolute left-3 text-gray-400">
             <Search size={18} />
           </div>
@@ -43,6 +46,7 @@ export default function AppHeader({ onSearch, activeWorkspace, onWorkspaceChange
             搜索
           </button>
         </form>
+        <SearchLanguageToggle mode={searchLanguageMode} onChange={onSearchLanguageModeChange} compact />
       </div>
 
       <div className="flex items-center gap-5 text-gray-500">

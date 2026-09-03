@@ -1,15 +1,18 @@
 import { Paper } from '../types/paper';
 import { authFetch } from './authService';
+import { QueryInfo, SearchLanguageMode } from '../types/research';
 
 export interface GraphData {
   papers: Paper[];
   edges: { source: string; target: string }[];
+  queryInfo?: QueryInfo;
 }
 
 export interface GraphSearchOptions {
   fromYear?: number;
   toYear?: number;
   strategy?: 'relevance' | 'foundational';
+  languageMode?: SearchLanguageMode;
 }
 
 interface BackendAuthor {
@@ -41,6 +44,7 @@ interface BackendNode {
 
 interface BackendGraph {
   nodes: Record<string, BackendNode>;
+  queryInfo?: QueryInfo;
 }
 
 // Convert Backend Category to Frontend UI Category
@@ -61,6 +65,7 @@ export const paperService = {
     if (options.fromYear) params.set('from_year', String(options.fromYear));
     if (options.toYear) params.set('to_year', String(options.toYear));
     if (options.strategy) params.set('strategy', options.strategy);
+    if (options.languageMode) params.set('language_mode', options.languageMode);
     const response = await authFetch(`/api/search?${params.toString()}`, { cache: 'no-store' });
     if (!response.ok) {
       let detail = '搜索失败，请稍后重试';
@@ -107,6 +112,6 @@ export const paperService = {
       });
     });
 
-    return { papers, edges };
+    return { papers, edges, queryInfo: data.queryInfo };
   }
 };

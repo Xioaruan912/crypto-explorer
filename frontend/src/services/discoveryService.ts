@@ -1,5 +1,6 @@
 import { Paper } from '../types/paper';
 import { authFetch } from './authService';
+import { QueryInfo, SearchLanguageMode } from '../types/research';
 import {
   DiscoveryAuthor,
   DiscoveryAuthorDetail,
@@ -92,7 +93,7 @@ function paramsToQuery(params: Record<string, string | number | boolean | undefi
 }
 
 export const discoveryService = {
-  async searchPapers(params: PaperSearchParams): Promise<Paper[]> {
+  async searchPapers(params: PaperSearchParams, languageMode: SearchLanguageMode = 'academic_en'): Promise<{ items: Paper[]; queryInfo?: QueryInfo }> {
     const response = await authFetch(`/api/discovery/papers?${paramsToQuery({
       query: params.query,
       from_year: params.fromYear,
@@ -102,10 +103,11 @@ export const discoveryService = {
       sort: params.sort || 'relevance',
       open_access: params.openAccess,
       limit: 30,
+      language_mode: languageMode,
     })}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
-    const body = await response.json() as { items: BackendWork[] };
-    return body.items.map(mapWork);
+    const body = await response.json() as { items: BackendWork[]; queryInfo?: QueryInfo };
+    return { items: body.items.map(mapWork), queryInfo: body.queryInfo };
   },
 
   async searchAuthors(query: string, sort: EntitySort = 'relevance'): Promise<DiscoveryAuthor[]> {

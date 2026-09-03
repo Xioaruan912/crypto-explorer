@@ -53,6 +53,8 @@ jobs:
         run: python backend/security_smoke.py
       - name: Concept genealogy regression smoke test
         run: cd backend && python genealogy_smoke.py
+      - name: Chinese academic query normalization smoke test
+        run: cd backend && python query_normalizer_smoke.py
 
   docker:
     name: Docker Compose

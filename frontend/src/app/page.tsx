@@ -14,12 +14,13 @@ import WorkspaceView from '@/components/WorkspaceView';
 import DiscoveryView from '@/components/DiscoveryView';
 import GenealogyView from '@/components/GenealogyView';
 import PaperDrawView from '@/components/PaperDrawView';
+import { QueryLanguageNotice } from '@/components/SearchLanguageControl';
 import { ForcedPasswordChange, LoginScreen } from '@/components/AuthScreens';
 import { Network, BarChart3, Loader2, AlertCircle, Search, GitMerge, BookOpen } from 'lucide-react';
 import { paperService, GraphData } from '@/services/paperService';
 import { researchService } from '@/services/researchService';
 import { authService } from '@/services/authService';
-import { AuthSession, FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, StudyMode, WorkspaceSection } from '@/types/research';
+import { AuthSession, FavoriteItem, ReadingListItem, ReadingStatus, ResearchTimeRange, ResearchView, SearchLanguageMode, StudyMode, WorkspaceSection } from '@/types/research';
 import { Paper } from '@/types/paper';
 
 export default function Home() {
@@ -27,6 +28,7 @@ export default function Home() {
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ResearchView>('graph');
   const [studyMode, setStudyMode] = useState<StudyMode>('related');
+  const [searchLanguageMode, setSearchLanguageMode] = useState<SearchLanguageMode>('academic_en');
   const [workspace, setWorkspace] = useState<WorkspaceSection | null>('dashboard');
   const [isSearching, setIsSearching] = useState(false);
   const [currentTopic, setCurrentTopic] = useState('');
@@ -147,7 +149,7 @@ export default function Home() {
     setSelectedPaperId(null);
     setDiscoverySelectedPaper(null);
     try {
-      const data = await paperService.searchGraph(query, range);
+      const data = await paperService.searchGraph(query, { ...range, languageMode: searchLanguageMode });
       setGraphData(data);
       if (data.papers.length > 0) {
         // Find foundation or highest cited to select initially
@@ -197,7 +199,13 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FC] text-[#171717] overflow-hidden">
-      <AppHeader onSearch={handleSearch} activeWorkspace={workspace} onWorkspaceChange={openWorkspace} />
+      <AppHeader
+        onSearch={handleSearch}
+        activeWorkspace={workspace}
+        onWorkspaceChange={openWorkspace}
+        searchLanguageMode={searchLanguageMode}
+        onSearchLanguageModeChange={setSearchLanguageMode}
+      />
       
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -244,6 +252,8 @@ export default function Home() {
             ) : discoveryMode ? (
               <DiscoveryView
                 mode={discoveryMode}
+                searchLanguageMode={searchLanguageMode}
+                onSearchLanguageModeChange={setSearchLanguageMode}
                 favoriteIds={new Set(favorites.map((item) => item.paper.id))}
                 readingIds={new Set(readingList.map((item) => item.paper.id))}
                 onSelectPaper={selectDiscoveryPaper}
@@ -252,6 +262,8 @@ export default function Home() {
               />
             ) : viewMode === 'draw' ? (
               <PaperDrawView
+                searchLanguageMode={searchLanguageMode}
+                onSearchLanguageModeChange={setSearchLanguageMode}
                 readingIds={new Set(readingList.map((item) => item.paper.id))}
                 onSelectPaper={selectDiscoveryPaper}
                 onAddReading={addReading}
@@ -332,6 +344,10 @@ export default function Home() {
                 ))}
               </div>
             )}
+
+            {viewMode === 'graph' && graphData?.queryInfo && (
+              <QueryLanguageNotice info={graphData.queryInfo} className="mt-3" />
+            )}
             
             {viewMode === 'reading' ? (
               <ReadingListView items={readingList} onUpdate={updateReading} onRemove={removeReading} onSelect={selectFromReading} />
@@ -353,10 +369,11 @@ export default function Home() {
               />
             ) : viewMode === 'graph' && graphData && studyMode !== 'related' ? (
               <GenealogyView
-                key={`${currentTopic}-${studyMode}-${researchTimeRange.fromYear || 'any'}-${researchTimeRange.toYear || 'any'}`}
+                key={`${currentTopic}-${studyMode}-${searchLanguageMode}-${researchTimeRange.fromYear || 'any'}-${researchTimeRange.toYear || 'any'}`}
                 query={currentTopic}
                 mode={studyMode}
                 range={researchTimeRange}
+                searchLanguageMode={searchLanguageMode}
                 readingIds={new Set(readingList.map((item) => item.paper.id))}
                 onSelectPaper={selectDiscoveryPaper}
                 onAddReading={addReading}

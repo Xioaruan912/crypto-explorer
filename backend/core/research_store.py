@@ -26,6 +26,9 @@ class ResearchStore:
     def _init_db(self) -> None:
         with self._connect() as conn:
             conn.execute("PRAGMA journal_mode = WAL")
+            # Uvicorn runs multiple worker processes. Serialize schema creation/migrations so
+            # two workers cannot both observe an old schema and race on the same ALTER TABLE.
+            conn.execute("BEGIN IMMEDIATE")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS reading_list (
@@ -53,6 +56,10 @@ class ResearchStore:
                 CREATE TABLE IF NOT EXISTS search_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     query TEXT NOT NULL,
+                    effective_query TEXT NOT NULL DEFAULT '',
+                    query_language TEXT NOT NULL DEFAULT 'unknown',
+                    language_mode TEXT NOT NULL DEFAULT 'original',
+                    normalized_terms_json TEXT NOT NULL DEFAULT '[]',
                     result_count INTEGER NOT NULL DEFAULT 0,
                     seed_title TEXT NOT NULL DEFAULT '',
                     search_type TEXT NOT NULL DEFAULT 'graph',
@@ -67,6 +74,14 @@ class ResearchStore:
                 conn.execute(
                     "ALTER TABLE search_history ADD COLUMN search_type TEXT NOT NULL DEFAULT 'graph'"
                 )
+            if "effective_query" not in history_columns:
+                conn.execute("ALTER TABLE search_history ADD COLUMN effective_query TEXT NOT NULL DEFAULT ''")
+            if "query_language" not in history_columns:
+                conn.execute("ALTER TABLE search_history ADD COLUMN query_language TEXT NOT NULL DEFAULT 'unknown'")
+            if "language_mode" not in history_columns:
+                conn.execute("ALTER TABLE search_history ADD COLUMN language_mode TEXT NOT NULL DEFAULT 'original'")
+            if "normalized_terms_json" not in history_columns:
+                conn.execute("ALTER TABLE search_history ADD COLUMN normalized_terms_json TEXT NOT NULL DEFAULT '[]'")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS user_profile (
@@ -457,11 +472,30 @@ class ResearchStore:
         result_count: int,
         seed_title: str = "",
         search_type: str = "graph",
+        query_info: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        query_info = query_info or {}
+        effective_query = str(query_info.get("effectiveQuery") or query)
+        query_language = str(query_info.get("detectedLanguage") or "unknown")
+        language_mode = str(query_info.get("requestedMode") or "original")
+        normalized_terms = query_info.get("normalizedTerms") or [effective_query]
         with self._lock, self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO search_history (query, result_count, seed_title, search_type) VALUES (?, ?, ?, ?)",
-                (query, result_count, seed_title, search_type),
+                """
+                INSERT INTO search_history
+                  (query, effective_query, query_language, language_mode, normalized_terms_json, result_count, seed_title, search_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    query,
+                    effective_query,
+                    query_language,
+                    language_mode,
+                    json.dumps(normalized_terms, ensure_ascii=False),
+                    result_count,
+                    seed_title,
+                    search_type,
+                ),
             )
             row = conn.execute("SELECT * FROM search_history WHERE id = ?", (cur.lastrowid,)).fetchone()
         return dict(row)
@@ -706,7 +740,10 @@ class ResearchStore:
             "reading_list": ["paper_id", "paper_json", "status", "priority", "note", "created_at", "updated_at"],
             "reading_tasks": ["id", "paper_id", "task_type", "task_text", "scheduled_date", "status", "created_at", "updated_at"],
             "favorites": ["paper_id", "paper_json", "created_at"],
-            "search_history": ["id", "query", "result_count", "seed_title", "search_type", "created_at"],
+            "search_history": [
+                "id", "query", "effective_query", "query_language", "language_mode",
+                "normalized_terms_json", "result_count", "seed_title", "search_type", "created_at",
+            ],
             "user_profile": ["id", "display_name", "role", "institution", "research_interests", "updated_at"],
             "notes": ["paper_id", "paper_json", "title", "content", "created_at", "updated_at"],
             "paper_draw_history": ["id", "query", "paper_id", "paper_json", "reason", "created_at"],
@@ -725,6 +762,11 @@ class ResearchStore:
                 if not isinstance(row, dict) or any(key not in columns for key in row):
                     raise ValueError(f"invalid backup row: {table}")
                 item = {column: row.get(column) for column in columns}
+                if table == "search_history":
+                    item["effective_query"] = str(item.get("effective_query") or item.get("query") or "")
+                    item["query_language"] = str(item.get("query_language") or "unknown")
+                    item["language_mode"] = str(item.get("language_mode") or "original")
+                    item["normalized_terms_json"] = str(item.get("normalized_terms_json") or "[]")
                 if "paper_json" in item and item["paper_json"] is not None:
                     parsed = json.loads(item["paper_json"])
                     parsed_id = str(parsed.get("id") or parsed.get("paperId") or "").strip() if isinstance(parsed, dict) else ""
@@ -767,6 +809,18 @@ class ResearchStore:
                 raise ValueError("invalid history type")
             if not isinstance(row["query"], str) or len(row["query"]) > 300:
                 raise ValueError("invalid history query")
+            if not isinstance(row["effective_query"], str) or len(row["effective_query"]) > 500:
+                raise ValueError("invalid effective history query")
+            if row["query_language"] not in {"zh", "en", "mixed", "unknown"}:
+                raise ValueError("invalid history query language")
+            if row["language_mode"] not in {"academic_en", "original"}:
+                raise ValueError("invalid history language mode")
+            try:
+                terms = json.loads(row["normalized_terms_json"])
+            except (TypeError, json.JSONDecodeError) as error:
+                raise ValueError("invalid normalized history terms") from error
+            if not isinstance(terms, list) or len(terms) > 30 or any(not isinstance(term, str) or len(term) > 300 for term in terms):
+                raise ValueError("invalid normalized history terms")
         for row in normalized["user_profile"]:
             if row["id"] != 1:
                 raise ValueError("invalid profile id")
@@ -803,7 +857,7 @@ class ResearchStore:
                     "reading_list": "INSERT INTO reading_list (paper_id, paper_json, status, priority, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     "reading_tasks": "INSERT INTO reading_tasks (id, paper_id, task_type, task_text, scheduled_date, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     "favorites": "INSERT INTO favorites (paper_id, paper_json, created_at) VALUES (?, ?, ?)",
-                    "search_history": "INSERT INTO search_history (id, query, result_count, seed_title, search_type, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    "search_history": "INSERT INTO search_history (id, query, effective_query, query_language, language_mode, normalized_terms_json, result_count, seed_title, search_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     "user_profile": "INSERT INTO user_profile (id, display_name, role, institution, research_interests, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "notes": "INSERT INTO notes (paper_id, paper_json, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                     "paper_draw_history": "INSERT INTO paper_draw_history (id, query, paper_id, paper_json, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)",

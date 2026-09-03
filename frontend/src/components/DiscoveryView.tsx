@@ -25,11 +25,15 @@ import {
 } from '../types/discovery';
 import { Paper } from '../types/paper';
 import { safeExternalUrl } from '../utils/url';
+import { QueryInfo, SearchLanguageMode } from '../types/research';
+import { QueryLanguageNotice, SearchLanguageToggle } from './SearchLanguageControl';
 
 interface DiscoveryViewProps {
   mode: DiscoveryMode;
   favoriteIds: Set<string>;
   readingIds: Set<string>;
+  searchLanguageMode: SearchLanguageMode;
+  onSearchLanguageModeChange: (mode: SearchLanguageMode) => void;
   onSelectPaper: (paper: Paper) => void;
   onToggleFavorite: (paper: Paper) => void;
   onAddReading: (paper: Paper) => void;
@@ -60,6 +64,8 @@ export default function DiscoveryView({
   mode,
   favoriteIds,
   readingIds,
+  searchLanguageMode,
+  onSearchLanguageModeChange,
   onSelectPaper,
   onToggleFavorite,
   onAddReading,
@@ -69,6 +75,7 @@ export default function DiscoveryView({
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queryInfo, setQueryInfo] = useState<QueryInfo | null>(null);
 
   const [papers, setPapers] = useState<Paper[]>([]);
   const [authors, setAuthors] = useState<DiscoveryAuthor[]>([]);
@@ -103,11 +110,14 @@ export default function DiscoveryView({
           venue: paperVenue.trim() || undefined,
           sort: paperSort,
           openAccess,
-        });
-        setPapers(result);
+        }, searchLanguageMode);
+        setPapers(result.items);
+        setQueryInfo(result.queryInfo || null);
       } else if (mode === 'authors') {
+        setQueryInfo(null);
         setAuthors(await discoveryService.searchAuthors(value, entitySort));
       } else {
+        setQueryInfo(null);
         setVenues(await discoveryService.searchVenues(value, entitySort));
       }
     } catch (caught) {
@@ -172,7 +182,10 @@ export default function DiscoveryView({
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
             检索
           </button>
+          {mode === 'papers' && <SearchLanguageToggle mode={searchLanguageMode} onChange={(next) => { onSearchLanguageModeChange(next); setQueryInfo(null); }} compact />}
         </div>
+
+        {mode === 'papers' && <QueryLanguageNotice info={queryInfo} className="mt-3" />}
 
         {mode === 'papers' ? (
           <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 lg:grid-cols-6">

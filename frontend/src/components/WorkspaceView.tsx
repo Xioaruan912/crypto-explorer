@@ -10,6 +10,7 @@ import {
   Circle,
   Clock3,
   FileSearch,
+  GitBranch,
   HelpCircle,
   History,
   LayoutDashboard,
@@ -90,6 +91,8 @@ function HelpView() {
     ['时间线与引文网络', '用时间线观察研究演化；用引文网络识别关键节点与直接关联论文。', Clock3],
     ['概念谱系与论文抽取', '“寻找开山论文”会沿参考文献向前追溯并结合历史术语；“论文抽取”先构建基础论文池，再均匀随机抽取，不设置稀有度。', FileSearch],
     ['阅读清单与每周 TODO', '把论文加入阅读库后，可按周一至周日安排“阅读、笔记、复习、复现”等任务，并独立跟踪完成状态。', BookOpenCheck],
+    ['中文学术检索', '默认把常见中文密码学术语转换成规范英文检索词，并在结果上方展示实际检索词。需要中文文献时可切换为“原词”。', Search],
+    ['开山论文与学习路径', '“寻找开山论文”会沿参考文献向前追溯；“从基础开始学”按前置基础、关键经典、概念开山、当前代表组织阅读。', GitBranch],
     ['收藏与历史', '收藏重要论文；成功搜索会自动写入历史记录，可随时重新执行。', Bookmark],
     ['数据持久化', '阅读清单、收藏、搜索历史与个人资料都会保存在 SQLite 中，容器重启后仍保留。', CheckCircle2],
   ] as const;
@@ -177,7 +180,7 @@ function DashboardView({ onRunSearch, onOpenReadingList }: { onRunSearch: (query
       )}
     </div>
     <div className="grid grid-cols-[1fr_320px] gap-5">
-      <div className="rounded-xl border border-gray-200 bg-white p-5"><h3 className="font-semibold text-gray-900">最近搜索</h3><div className="mt-4 divide-y divide-gray-100">{data.recent_searches.length ? data.recent_searches.map(item => <button key={item.id} onClick={() => onRunSearch(item.query)} className="flex w-full items-center justify-between py-3 text-left hover:text-[#6D4AFF]"><div><div className="text-sm font-medium">{item.query}</div><div className="mt-1 text-xs text-gray-400">{item.result_count} 篇论文 · {formatTime(item.created_at)}</div></div><ArrowRight size={16} /></button>) : <Empty text="还没有搜索历史" />}</div></div>
+      <div className="rounded-xl border border-gray-200 bg-white p-5"><h3 className="font-semibold text-gray-900">最近搜索</h3><div className="mt-4 divide-y divide-gray-100">{data.recent_searches.length ? data.recent_searches.map(item => <button key={item.id} onClick={() => onRunSearch(item.query)} className="flex w-full items-center justify-between py-3 text-left hover:text-[#6D4AFF]"><div className="min-w-0"><div className="text-sm font-medium">{item.query}</div>{item.effective_query && item.effective_query !== item.query && <div className="mt-1 truncate text-[11px] text-[#8A73EE]">实际检索：{item.effective_query}</div>}<div className="mt-1 text-xs text-gray-400">{item.result_count} 篇论文 · {formatTime(item.created_at)}</div></div><ArrowRight size={16} className="shrink-0" /></button>) : <Empty text="还没有搜索历史" />}</div></div>
       <div className="rounded-xl border border-gray-200 bg-white p-5"><h3 className="font-semibold text-gray-900">阅读进度</h3><div className="mt-5 space-y-4"><Progress label="待读" value={data.reading_statuses.to_read || 0} total={data.reading_count} /><Progress label="在读" value={data.reading_statuses.reading || 0} total={data.reading_count} /><Progress label="已读" value={data.reading_statuses.done || 0} total={data.reading_count} /></div></div>
     </div>
   </div>;
@@ -199,7 +202,7 @@ function HistoryView({ onRunSearch }: { onRunSearch: (query: string) => void }) 
   if (error) return <ErrorBox text={error} />;
   return <div className="rounded-xl border border-gray-200 bg-white">
     <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4"><div className="text-sm text-gray-500">共 {items.length} 条搜索记录</div><button disabled={!items.length} onClick={async () => { await researchService.clearHistory(); setItems([]); }} className="flex items-center gap-2 text-sm text-red-500 disabled:opacity-40"><Trash2 size={15} />清空历史</button></div>
-    {items.length ? <div className="divide-y divide-gray-100">{items.map(item => <div key={item.id} className="flex items-center gap-4 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-400"><History size={18} /></div><div className="min-w-0 flex-1"><div className="font-medium text-gray-900">{item.query}</div><div className="mt-1 truncate text-xs text-gray-400">{item.seed_title || '研究图谱'} · {item.result_count} 篇 · {formatTime(item.created_at)}</div></div><button onClick={() => onRunSearch(item.query)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-[#6D4AFF] hover:bg-[#F8F6FF]">重新搜索</button><button onClick={async () => { await researchService.removeHistory(item.id); setItems(current => current.filter(x => x.id !== item.id)); }} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={16} /></button></div>)}</div> : <Empty text="还没有搜索历史" />}
+    {items.length ? <div className="divide-y divide-gray-100">{items.map(item => <div key={item.id} className="flex items-center gap-4 px-5 py-4"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 text-gray-400"><History size={18} /></div><div className="min-w-0 flex-1"><div className="font-medium text-gray-900">{item.query}</div>{item.effective_query && item.effective_query !== item.query && <div className="mt-1 truncate text-xs text-[#8A73EE]">中文学术检索 → {item.effective_query}</div>}<div className="mt-1 truncate text-xs text-gray-400">{item.seed_title || '研究图谱'} · {item.result_count} 篇 · {formatTime(item.created_at)}</div></div><button onClick={() => onRunSearch(item.query)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-[#6D4AFF] hover:bg-[#F8F6FF]">重新搜索</button><button onClick={async () => { await researchService.removeHistory(item.id); setItems(current => current.filter(x => x.id !== item.id)); }} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={16} /></button></div>)}</div> : <Empty text="还没有搜索历史" />}
   </div>;
 }
 

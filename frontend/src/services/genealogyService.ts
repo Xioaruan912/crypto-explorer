@@ -1,5 +1,5 @@
 import { Paper } from '../types/paper';
-import { DrawHistoryItem, DrawResponse, GenealogyData, GenealogyPaper, ResearchTimeRange } from '../types/research';
+import { DrawHistoryItem, DrawResponse, GenealogyData, GenealogyPaper, QueryInfo, ResearchTimeRange, SearchLanguageMode } from '../types/research';
 import { authFetch } from './authService';
 
 interface BackendAuthorRef { name: string }
@@ -27,6 +27,7 @@ interface BackendGenealogyPaper {
 
 interface BackendGenealogyData {
   query: string;
+  queryInfo?: QueryInfo;
   historicalQuery?: string | null;
   anchors: BackendGenealogyPaper[];
   origin: BackendGenealogyPaper | null;
@@ -51,6 +52,7 @@ interface BackendDrawResponse {
   poolCount: number;
   historyItem: BackendDrawHistoryItem;
   origin: BackendGenealogyPaper | null;
+  queryInfo: QueryInfo;
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -86,16 +88,17 @@ function mapItem(item: BackendGenealogyPaper): GenealogyPaper {
   return { ...item, paper: mapWork(item.paper) };
 }
 
-function queryString(query: string, range?: Partial<ResearchTimeRange>, poolSize = 24) {
+function queryString(query: string, range?: Partial<ResearchTimeRange>, poolSize = 24, languageMode: SearchLanguageMode = 'academic_en') {
   const params = new URLSearchParams({ query, pool_size: String(poolSize) });
   if (range?.fromYear) params.set('from_year', String(range.fromYear));
   if (range?.toYear) params.set('to_year', String(range.toYear));
+  params.set('language_mode', languageMode);
   return params.toString();
 }
 
 export const genealogyService = {
-  async getGenealogy(query: string, range?: Partial<ResearchTimeRange>): Promise<GenealogyData> {
-    const response = await authFetch(`/api/genealogy?${queryString(query, range)}`, { cache: 'no-store' });
+  async getGenealogy(query: string, range?: Partial<ResearchTimeRange>, languageMode: SearchLanguageMode = 'academic_en'): Promise<GenealogyData> {
+    const response = await authFetch(`/api/genealogy?${queryString(query, range, 24, languageMode)}`, { cache: 'no-store' });
     if (!response.ok) throw new Error(await parseError(response));
     const body = await response.json() as BackendGenealogyData;
     return {
@@ -109,7 +112,7 @@ export const genealogyService = {
     };
   },
 
-  async draw(input: { query: string; fromYear?: number; toYear?: number; foundationalOnly: boolean }): Promise<DrawResponse> {
+  async draw(input: { query: string; fromYear?: number; toYear?: number; foundationalOnly: boolean; languageMode: SearchLanguageMode }): Promise<DrawResponse> {
     const response = await authFetch('/api/paper-draw', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -118,6 +121,7 @@ export const genealogyService = {
         from_year: input.fromYear,
         to_year: input.toYear,
         foundational_only: input.foundationalOnly,
+        language_mode: input.languageMode,
       }),
     });
     if (!response.ok) throw new Error(await parseError(response));
@@ -128,6 +132,7 @@ export const genealogyService = {
       poolCount: body.poolCount,
       historyItem: { ...body.historyItem, paper: mapWork(body.historyItem.paper) },
       origin: body.origin ? mapItem(body.origin) : null,
+      queryInfo: body.queryInfo,
     };
   },
 

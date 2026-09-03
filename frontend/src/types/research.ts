@@ -2,6 +2,7 @@ import { Paper } from './paper';
 
 export type ResearchView = 'graph' | 'timeline' | 'citations' | 'reading' | 'papers' | 'authors' | 'venues' | 'draw';
 export type StudyMode = 'related' | 'origin' | 'learning';
+export type SearchLanguageMode = 'academic_en' | 'original';
 export type ReadingStatus = 'to_read' | 'reading' | 'done';
 export type ReadingTaskStatus = 'todo' | 'doing' | 'done';
 export type ReadingTaskType = 'read' | 'notes' | 'review' | 'reproduce' | 'custom';
@@ -35,10 +36,27 @@ export interface FavoriteItem {
 export interface SearchHistoryItem {
   id: number;
   query: string;
+  effective_query?: string;
+  query_language?: 'zh' | 'en' | 'mixed' | 'unknown';
+  language_mode?: SearchLanguageMode;
+  normalized_terms_json?: string;
   result_count: number;
   seed_title: string;
   search_type?: 'graph' | 'papers' | 'authors' | 'venues';
   created_at: string;
+}
+
+export interface QueryInfo {
+  originalQuery: string;
+  detectedLanguage: 'zh' | 'en' | 'mixed';
+  requestedMode: SearchLanguageMode;
+  effectiveQuery: string;
+  normalizedTerms: string[];
+  historicalTerms: string[];
+  translated: boolean;
+  glossaryMatch?: string | null;
+  confidence: 'direct' | 'high' | 'medium' | 'low';
+  notice: string;
 }
 
 export interface UserProfile {
@@ -103,6 +121,7 @@ export interface GenealogyStage {
 
 export interface GenealogyData {
   query: string;
+  queryInfo?: QueryInfo;
   historicalQuery?: string | null;
   anchors: GenealogyPaper[];
   origin: GenealogyPaper | null;
@@ -127,4 +146,5 @@ export interface DrawResponse {
   poolCount: number;
   historyItem: DrawHistoryItem;
   origin: GenealogyPaper | null;
+  queryInfo: QueryInfo;
 }

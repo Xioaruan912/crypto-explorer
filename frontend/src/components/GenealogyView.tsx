@@ -3,31 +3,33 @@
 import { useEffect, useState } from 'react';
 import { ArrowDown, BookOpenCheck, ExternalLink, GitBranch, Loader2, Search, Sparkles } from 'lucide-react';
 import { genealogyService } from '@/services/genealogyService';
-import { GenealogyData, GenealogyPaper, ResearchTimeRange, StudyMode } from '@/types/research';
+import { GenealogyData, GenealogyPaper, ResearchTimeRange, SearchLanguageMode, StudyMode } from '@/types/research';
 import { Paper } from '@/types/paper';
+import { QueryLanguageNotice } from './SearchLanguageControl';
 
 interface Props {
   query: string;
   mode: Exclude<StudyMode, 'related'>;
   range: ResearchTimeRange;
+  searchLanguageMode: SearchLanguageMode;
   readingIds: Set<string>;
   onSelectPaper: (paper: Paper) => void;
   onAddReading: (paper: Paper) => Promise<void>;
 }
 
-export default function GenealogyView({ query, mode, range, readingIds, onSelectPaper, onAddReading }: Props) {
+export default function GenealogyView({ query, mode, range, searchLanguageMode, readingIds, onSelectPaper, onAddReading }: Props) {
   const [data, setData] = useState<GenealogyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    genealogyService.getGenealogy(query, range)
+    genealogyService.getGenealogy(query, range, searchLanguageMode)
       .then((result) => { if (active) setData(result); })
       .catch((e) => { if (active) setError(e instanceof Error ? e.message : '概念谱系加载失败'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [query, range]);
+  }, [query, range, searchLanguageMode]);
 
   if (loading) return <div className="mt-6 flex h-[460px] items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500"><Loader2 size={22} className="mr-2 animate-spin text-[#6D4AFF]" />正在沿参考文献反向追溯概念祖先...</div>;
   if (error) return <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-600">{error}</div>;
@@ -35,6 +37,7 @@ export default function GenealogyView({ query, mode, range, readingIds, onSelect
 
   if (mode === 'origin') {
     return <div className="mt-6 space-y-5">
+      <QueryLanguageNotice info={data.queryInfo} />
       <div className="rounded-xl border border-[#D9D0FF] bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div><div className="flex items-center gap-2 text-sm font-semibold text-[#6D4AFF]"><Sparkles size={17} />开山论文候选</div><p className="mt-1 text-sm text-gray-500">不是找标题里最早出现关键词的论文，而是结合现代锚点、反向引用祖先、年代和学术影响力寻找概念源头。</p>{data.historicalQuery && <p className="mt-2 text-xs text-[#6D4AFF]">历史术语辅助：{data.historicalQuery}</p>}</div>
@@ -49,7 +52,9 @@ export default function GenealogyView({ query, mode, range, readingIds, onSelect
     </div>;
   }
 
-  return <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+  return <div className="mt-6 space-y-3">
+    <QueryLanguageNotice info={data.queryInfo} />
+    <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
     <div className="mb-6"><div className="flex items-center gap-2 text-lg font-bold text-gray-900"><GitBranch size={20} className="text-[#6D4AFF]" />从基础开始学：{query}</div><p className="mt-1 text-sm text-gray-500">按“前置基础 → 关键经典 → 概念开山 → 当前代表”组织阅读，而不是按关键词年份简单排序。</p></div>
     <div className="space-y-3">
       {data.learningPath.map((stage, index) => <div key={stage.stage}>
@@ -59,6 +64,7 @@ export default function GenealogyView({ query, mode, range, readingIds, onSelect
         </div>
         {index < data.learningPath.length - 1 && <div className="flex h-8 items-center pl-[54px] text-gray-300"><ArrowDown size={18} /></div>}
       </div>)}
+    </div>
     </div>
   </div>;
 }

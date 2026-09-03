@@ -24,6 +24,7 @@ from fetchers.openalex import OpenAlexClient
 from analyzer.graph_builder import GraphBuilder
 from analyzer.heuristic_engine import HeuristicEngine
 from analyzer.concept_genealogy import ConceptGenealogyEngine
+from analyzer.query_normalizer import normalize_query
 from core.logging_config import configure_logging
 from core.research_store import ResearchStore
 
@@ -121,6 +122,7 @@ class PaperDrawRequest(BaseModel):
     from_year: int | None = Field(default=None, ge=1800, le=2100)
     to_year: int | None = Field(default=None, ge=1800, le=2100)
     foundational_only: bool = True
+    language_mode: str = Field(default="academic_en", pattern="^(academic_en|original)$")
 
 
 class ReadingTaskCreate(BaseModel):
@@ -300,29 +302,42 @@ def _build_scoped_openalex_graph(
     return _filter_graph_years(graph, from_year, to_year)
 
 
-def _record_and_dump_graph(query: str, graph: ResearchGraph) -> dict:
+def _record_and_dump_graph(display_query: str, graph: ResearchGraph, query_info: dict[str, Any]) -> dict:
     seed_title = ""
     seed_node = graph.nodes.get(graph.seed_paper_id)
     if seed_node is not None:
         seed_title = seed_node.paper.title
     try:
-        store.add_search_history(query, len(graph.nodes), seed_title)
+        store.add_search_history(display_query, len(graph.nodes), seed_title, query_info=query_info)
     except Exception:
-        logger.exception("failed to persist search history query=%r", query)
-    return graph.model_dump()
+        logger.exception("failed to persist search history query=%r", display_query)
+    payload = graph.model_dump()
+    payload["queryInfo"] = query_info
+    return payload
 
 
-def _record_discovery_history(query: str, items: list[dict], search_type: str) -> None:
+def _record_discovery_history(
+    display_query: str,
+    items: list[dict],
+    search_type: str,
+    query_info: dict[str, Any] | None = None,
+) -> None:
     seed_title = ""
     if items:
         first = items[0]
         seed_title = str(first.get("title") or first.get("name") or "")
     try:
-        store.add_search_history(query, len(items), seed_title, search_type=search_type)
+        store.add_search_history(
+            display_query,
+            len(items),
+            seed_title,
+            search_type=search_type,
+            query_info=query_info,
+        )
     except Exception:
         logger.exception(
             "failed to persist discovery history query=%r search_type=%s",
-            query,
+            display_query,
             search_type,
         )
 
@@ -721,14 +736,24 @@ def delete_note(paper_id: str = ApiPath(min_length=1, max_length=300)):
     return {"status": "deleted"}
 
 
+@app.get("/api/query/normalize")
+def normalize_search_query(
+    query: str = Query(min_length=2, max_length=300),
+    language_mode: str = Query(default="academic_en", pattern="^(academic_en|original)$"),
+):
+    return normalize_query(query, language_mode)
+
+
 @app.get("/api/genealogy")
 def concept_genealogy(
     query: str = Query(min_length=2, max_length=300),
     from_year: int | None = Query(default=None, ge=1800, le=2100),
     to_year: int | None = Query(default=None, ge=1800, le=2100),
     pool_size: int = Query(default=24, ge=8, le=50),
+    language_mode: str = Query(default="academic_en", pattern="^(academic_en|original)$"),
 ):
-    normalized_query = query.strip()
+    query_info = normalize_query(query, language_mode)
+    normalized_query = str(query_info["effectiveQuery"])
     if from_year and to_year and from_year > to_year:
         raise HTTPException(status_code=422, detail="from_year cannot be greater than to_year")
     try:
@@ -739,6 +764,7 @@ def concept_genealogy(
             result.get("poolCount"),
             ((result.get("origin") or {}).get("paper") or {}).get("paperId"),
         )
+        result["queryInfo"] = query_info
         return result
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -760,7 +786,8 @@ def clear_paper_draw_history():
 
 @app.post("/api/paper-draw")
 def draw_foundational_paper(payload: PaperDrawRequest):
-    normalized_query = payload.query.strip()
+    query_info = normalize_query(payload.query, payload.language_mode)
+    normalized_query = str(query_info["effectiveQuery"])
     if payload.from_year and payload.to_year and payload.from_year > payload.to_year:
         raise HTTPException(status_code=422, detail="from_year cannot be greater than to_year")
     try:
@@ -804,7 +831,7 @@ def draw_foundational_paper(payload: PaperDrawRequest):
     ] or candidates
     selected = secrets.choice(available)
     history_item = store.add_draw_history(
-        normalized_query,
+        payload.query.strip(),
         selected["paper"],
         str(selected.get("reason") or ""),
     )
@@ -827,6 +854,7 @@ def draw_foundational_paper(payload: PaperDrawRequest):
         "poolCount": len(candidates),
         "historyItem": history_item,
         "origin": genealogy.get("origin"),
+        "queryInfo": query_info,
     }
 
 
@@ -840,8 +868,10 @@ def discover_papers(
     sort: str = Query(default="relevance", pattern="^(relevance|citations|newest)$"),
     open_access: bool = False,
     limit: int = Query(default=25, ge=1, le=50),
+    language_mode: str = Query(default="academic_en", pattern="^(academic_en|original)$"),
 ):
-    normalized_query = query.strip()
+    query_info = normalize_query(query, language_mode)
+    normalized_query = str(query_info["effectiveQuery"])
     if from_year and to_year and from_year > to_year:
         raise HTTPException(status_code=422, detail="from_year cannot be greater than to_year")
     try:
@@ -869,9 +899,9 @@ def discover_papers(
                 if venue_needle in str(item.get("venue") or "").casefold()
             ]
         items = items[:limit]
-        _record_discovery_history(normalized_query, items, "papers")
+        _record_discovery_history(query.strip(), items, "papers", query_info)
         logger.info("paper discovery completed query=%r results=%s", normalized_query, len(items))
-        return {"items": items, "count": len(items), "provider": "OpenAlex"}
+        return {"items": items, "count": len(items), "provider": "OpenAlex", "queryInfo": query_info}
     except HTTPException:
         raise
     except Exception as error:
@@ -938,11 +968,20 @@ def search_topic(
     from_year: int | None = Query(default=None, ge=1800, le=2100),
     to_year: int | None = Query(default=None, ge=1800, le=2100),
     strategy: str = Query(default="relevance", pattern="^(relevance|foundational)$"),
+    language_mode: str = Query(default="academic_en", pattern="^(academic_en|original)$"),
 ):
-    normalized_query = query.strip()
+    display_query = query.strip()
+    query_info = normalize_query(display_query, language_mode)
+    normalized_query = str(query_info["effectiveQuery"])
     if from_year and to_year and from_year > to_year:
         raise HTTPException(status_code=422, detail="from_year must be <= to_year")
-    logger.info("search started query=%r max_nodes=%s", normalized_query, max_nodes)
+    logger.info(
+        "search started query=%r effective_query=%r language_mode=%s max_nodes=%s",
+        display_query,
+        normalized_query,
+        language_mode,
+        max_nodes,
+    )
     if from_year is not None or to_year is not None or strategy == "foundational":
         try:
             graph = _build_scoped_openalex_graph(
@@ -960,7 +999,7 @@ def search_topic(
                 to_year,
                 len(graph.nodes),
             )
-            return _record_and_dump_graph(normalized_query, graph)
+            return _record_and_dump_graph(display_query, graph, query_info)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
         except requests.RequestException as e:
@@ -975,7 +1014,7 @@ def search_topic(
             len(graph.nodes),
             len(graph.taxonomy),
         )
-        return _record_and_dump_graph(normalized_query, graph)
+        return _record_and_dump_graph(display_query, graph, query_info)
     except ValueError as e:
         logger.warning("search returned no result query=%r error=%s", normalized_query, e)
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -988,12 +1027,13 @@ def search_topic(
                 normalized_query,
                 len(cached_graph.nodes),
             )
-            return _record_and_dump_graph(normalized_query, cached_graph)
+            return _record_and_dump_graph(display_query, cached_graph, query_info)
         if status_code == 429 or (status_code is not None and status_code >= 500):
             try:
                 return _record_and_dump_graph(
-                    normalized_query,
+                    display_query,
                     _build_openalex_fallback(normalized_query, max_nodes),
+                    query_info,
                 )
             except Exception as fallback_error:
                 logger.exception("openalex fallback failed query=%r", normalized_query)
@@ -1007,8 +1047,9 @@ def search_topic(
         logger.warning("semantic scholar network error; trying openalex query=%r error=%s", normalized_query, e)
         try:
             return _record_and_dump_graph(
-                normalized_query,
+                display_query,
                 _build_openalex_fallback(normalized_query, max_nodes),
+                query_info,
             )
         except Exception as fallback_error:
             logger.exception("openalex fallback failed query=%r", normalized_query)
