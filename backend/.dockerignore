@@ -1,0 +1,7 @@
+__pycache__
+*.py[cod]
+.pytest_cache
+.git
+output/*
+!output/Registration-Based_Encryption_Garg_data.json
+*.log

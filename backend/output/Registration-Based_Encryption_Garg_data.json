@@ -1,0 +1,500 @@
+{
+  "seed_paper_id": "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa",
+  "nodes": {
+    "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa": {
+      "paper": {
+        "paperId": "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa",
+        "title": "Registration-Based Encryption: Removing Private-Key Generator from IBE",
+        "authors": [
+          {
+            "authorId": "38430392",
+            "name": "Sanjam Garg"
+          },
+          {
+            "authorId": "145265266",
+            "name": "Mohammad Hajiabadi"
+          },
+          {
+            "authorId": "143946856",
+            "name": "Mohammad Mahmoody"
+          },
+          {
+            "authorId": "79611792",
+            "name": "Ahmadreza Rahimi"
+          }
+        ],
+        "year": 2018,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": "This work introduces the notion of registration-based encryption (RBE for short) with the goal of removing the trust parties need to place in the private-key generator in an IBE scheme.",
+        "citationCount": 85,
+        "url": "https://www.semanticscholar.org/paper/6c1f83ea5123ce1f3eb048c4606692fa526f8bfa",
+        "eprint_id": "2018/1030",
+        "role": "Foundation",
+        "category": "Foundations",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 10,
+      "citations": [],
+      "cited_by": [
+        "7da91b61fca4183116bfd089685dd1e3c776fee6",
+        "0590b550af52f9e2cb2aef0b56d0f0542c1246bd",
+        "20b2d2980fe42d8178d649b6cc2bbc991404c29d",
+        "e40e524d4db6d62d9594f0aec075f1611968f9fb",
+        "1d4dcc0f5b5420880b99965651bdfd7078c095c4",
+        "43b6f14e5dce6eaea69b2ea5e5070990031c18cf",
+        "40d28b2bedc898ea7e08a2deb9c3e873079d6ecf",
+        "45f515ad3498c77c3766e0456c94af65ae3d6586",
+        "b530876dc429ccc82d7b978f3dc0524a9615c6f8",
+        "22960352fb5290127522b530fc22ea9a30f3cc1c"
+      ]
+    },
+    "7da91b61fca4183116bfd089685dd1e3c776fee6": {
+      "paper": {
+        "paperId": "7da91b61fca4183116bfd089685dd1e3c776fee6",
+        "title": "Match Me if You Can: Matchmaking Encryption and Its Applications",
+        "authors": [
+          {
+            "authorId": "1700850",
+            "name": "G. Ateniese"
+          },
+          {
+            "authorId": "52228670",
+            "name": "Danilo Francati"
+          },
+          {
+            "authorId": "144403648",
+            "name": "David Nuñez"
+          },
+          {
+            "authorId": "1678684",
+            "name": "D. Venturi"
+          }
+        ],
+        "year": 2019,
+        "venue": "Journal of Cryptology",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 112,
+        "url": "https://www.semanticscholar.org/paper/7da91b61fca4183116bfd089685dd1e3c776fee6",
+        "eprint_id": "2018/1094",
+        "role": "Key Milestone",
+        "category": "General / Applications",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "0590b550af52f9e2cb2aef0b56d0f0542c1246bd": {
+      "paper": {
+        "paperId": "0590b550af52f9e2cb2aef0b56d0f0542c1246bd",
+        "title": "Registered Attribute-Based Encryption",
+        "authors": [
+          {
+            "authorId": "1808829",
+            "name": "S. Hohenberger"
+          },
+          {
+            "authorId": "2114183132",
+            "name": "George Lu"
+          },
+          {
+            "authorId": "145778768",
+            "name": "Brent Waters"
+          },
+          {
+            "authorId": "25629078",
+            "name": "David J. Wu"
+          }
+        ],
+        "year": 2022,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 69,
+        "url": "https://www.semanticscholar.org/paper/0590b550af52f9e2cb2aef0b56d0f0542c1246bd",
+        "eprint_id": "2026/1293",
+        "role": "Key Milestone",
+        "category": "General / Applications",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "20b2d2980fe42d8178d649b6cc2bbc991404c29d": {
+      "paper": {
+        "paperId": "20b2d2980fe42d8178d649b6cc2bbc991404c29d",
+        "title": "Registration-Based Encryption from Standard Assumptions",
+        "authors": [
+          {
+            "authorId": "38430392",
+            "name": "Sanjam Garg"
+          },
+          {
+            "authorId": "145265266",
+            "name": "Mohammad Hajiabadi"
+          },
+          {
+            "authorId": "143946856",
+            "name": "Mohammad Mahmoody"
+          },
+          {
+            "authorId": "79611792",
+            "name": "Ahmadreza Rahimi"
+          },
+          {
+            "authorId": "2580697",
+            "name": "Sruthi Sekar"
+          }
+        ],
+        "year": 2019,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 50,
+        "url": "https://www.semanticscholar.org/paper/20b2d2980fe42d8178d649b6cc2bbc991404c29d",
+        "eprint_id": "2026/1083",
+        "role": "Key Milestone",
+        "category": "Security Foundations",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "e40e524d4db6d62d9594f0aec075f1611968f9fb": {
+      "paper": {
+        "paperId": "e40e524d4db6d62d9594f0aec075f1611968f9fb",
+        "title": "Cross-Domain Access Control Encryption: Arbitrary-policy, Constant-size, Efficient",
+        "authors": [
+          {
+            "authorId": "40617986",
+            "name": "Xiuhua Wang"
+          },
+          {
+            "authorId": "145876490",
+            "name": "Sherman S. M. Chow"
+          }
+        ],
+        "year": 2021,
+        "venue": "IEEE Symposium on Security and Privacy",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 41,
+        "url": "https://www.semanticscholar.org/paper/e40e524d4db6d62d9594f0aec075f1611968f9fb",
+        "eprint_id": null,
+        "role": "Derivative Work",
+        "category": "Efficiency",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "1d4dcc0f5b5420880b99965651bdfd7078c095c4": {
+      "paper": {
+        "paperId": "1d4dcc0f5b5420880b99965651bdfd7078c095c4",
+        "title": "Verifiable Registration-Based Encryption",
+        "authors": [
+          {
+            "authorId": "2275167",
+            "name": "Rishab Goyal"
+          },
+          {
+            "authorId": "8210582",
+            "name": "Satyanarayana Vusirikala"
+          }
+        ],
+        "year": 2020,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 40,
+        "url": "https://www.semanticscholar.org/paper/1d4dcc0f5b5420880b99965651bdfd7078c095c4",
+        "eprint_id": "2019/1044",
+        "role": "Derivative Work",
+        "category": "General / Applications",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "43b6f14e5dce6eaea69b2ea5e5070990031c18cf": {
+      "paper": {
+        "paperId": "43b6f14e5dce6eaea69b2ea5e5070990031c18cf",
+        "title": "Threshold Encryption with Silent Setup",
+        "authors": [
+          {
+            "authorId": "38430392",
+            "name": "Sanjam Garg"
+          },
+          {
+            "authorId": "1421223087",
+            "name": "Dimitris Kolonelos"
+          },
+          {
+            "authorId": "1411407012",
+            "name": "G. Policharla"
+          },
+          {
+            "authorId": "2242973680",
+            "name": "Mingyuan Wang"
+          }
+        ],
+        "year": 2024,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 40,
+        "url": "https://www.semanticscholar.org/paper/43b6f14e5dce6eaea69b2ea5e5070990031c18cf",
+        "eprint_id": "2026/1820",
+        "role": "Derivative Work",
+        "category": "Advanced Variants",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "40d28b2bedc898ea7e08a2deb9c3e873079d6ecf": {
+      "paper": {
+        "paperId": "40d28b2bedc898ea7e08a2deb9c3e873079d6ecf",
+        "title": "Efficient Registration-Based Encryption",
+        "authors": [
+          {
+            "authorId": "9032985",
+            "name": "Noemi Glaeser"
+          },
+          {
+            "authorId": "1421223087",
+            "name": "Dimitris Kolonelos"
+          },
+          {
+            "authorId": "2103014",
+            "name": "Giulio Malavolta"
+          },
+          {
+            "authorId": "79611792",
+            "name": "Ahmadreza Rahimi"
+          }
+        ],
+        "year": 2023,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": "Registration-based encryption (RBE) was recently introduced as an alternative to identity-based encryption (IBE), to resolve the key-escrow problem: In RBE, the trusted authority is substituted with a weaker entity, called the key curator, who has no knowledge of any secret key. Users generate keys on their own and then publicly register their identities and their corresponding public keys to the key curator. RBE is a promising alternative to IBE, retaining many of its advantages while removing the key-escrow problem, the major drawback of IBE. Unfortunately, all existing constructions of RBE use cryptographic schemes in a non black-box way, which makes them prohibitively expensive. It has been estimated that the size of an RBE ciphertext would be in the order of terabytes (though no RBE has even been implemented). In this work, we propose a new approach to construct RBE, from standard assumptions in bilinear groups. Our scheme is black-box and it is concretely highly efficient-a ciphertext is 914 bytes. To substantiate this claim, we implemented a prototype of our scheme and we show that it scales to millions of users. The public parameters of the scheme are on the order of kilobytes. The most expensive operation (registration) takes at most a handful of seconds, whereas the encryption and decryption runtimes are on the order of milliseconds. This is the first-ever implementation of an RBE scheme and demonstrates that the practical deployment of RBE is already possible with today's hardware.",
+        "tldr": null,
+        "citationCount": 39,
+        "url": "https://www.semanticscholar.org/paper/40d28b2bedc898ea7e08a2deb9c3e873079d6ecf",
+        "eprint_id": "2026/1079",
+        "role": "Derivative Work",
+        "category": "Security Foundations",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "45f515ad3498c77c3766e0456c94af65ae3d6586": {
+      "paper": {
+        "paperId": "45f515ad3498c77c3766e0456c94af65ae3d6586",
+        "title": "Efficient Laconic Cryptography from Learning With Errors",
+        "authors": [
+          {
+            "authorId": "2990124",
+            "name": "Nico Döttling"
+          },
+          {
+            "authorId": "1421223087",
+            "name": "Dimitris Kolonelos"
+          },
+          {
+            "authorId": "3064250",
+            "name": "Russell W. F. Lai"
+          },
+          {
+            "authorId": "145519311",
+            "name": "Chuanwei Lin"
+          },
+          {
+            "authorId": "2103014",
+            "name": "Giulio Malavolta"
+          },
+          {
+            "authorId": "79611792",
+            "name": "Ahmadreza Rahimi"
+          }
+        ],
+        "year": 2023,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 31,
+        "url": "https://www.semanticscholar.org/paper/45f515ad3498c77c3766e0456c94af65ae3d6586",
+        "eprint_id": "2026/768",
+        "role": "Derivative Work",
+        "category": "Efficiency",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "b530876dc429ccc82d7b978f3dc0524a9615c6f8": {
+      "paper": {
+        "paperId": "b530876dc429ccc82d7b978f3dc0524a9615c6f8",
+        "title": "Registered (Inner-Product) Functional Encryption",
+        "authors": [
+          {
+            "authorId": "52228670",
+            "name": "Danilo Francati"
+          },
+          {
+            "authorId": "46232227",
+            "name": "Daniele Friolo"
+          },
+          {
+            "authorId": "9273684",
+            "name": "Monosij Maitra"
+          },
+          {
+            "authorId": "2103014",
+            "name": "Giulio Malavolta"
+          },
+          {
+            "authorId": "79611792",
+            "name": "Ahmadreza Rahimi"
+          },
+          {
+            "authorId": "1678684",
+            "name": "D. Venturi"
+          }
+        ],
+        "year": 2023,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 30,
+        "url": "https://www.semanticscholar.org/paper/b530876dc429ccc82d7b978f3dc0524a9615c6f8",
+        "eprint_id": "2025/2207",
+        "role": "Derivative Work",
+        "category": "General / Applications",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    },
+    "22960352fb5290127522b530fc22ea9a30f3cc1c": {
+      "paper": {
+        "paperId": "22960352fb5290127522b530fc22ea9a30f3cc1c",
+        "title": "Laconic Private Set Intersection and Applications",
+        "authors": [
+          {
+            "authorId": "3367052",
+            "name": "Navid Alamati"
+          },
+          {
+            "authorId": "144168667",
+            "name": "P. Branco"
+          },
+          {
+            "authorId": "2990124",
+            "name": "Nico Döttling"
+          },
+          {
+            "authorId": "38430392",
+            "name": "Sanjam Garg"
+          },
+          {
+            "authorId": "145265266",
+            "name": "Mohammad Hajiabadi"
+          },
+          {
+            "authorId": "9581889",
+            "name": "Sihang Pu"
+          }
+        ],
+        "year": 2021,
+        "venue": "IACR Cryptology ePrint Archive",
+        "abstract": null,
+        "tldr": null,
+        "citationCount": 30,
+        "url": "https://www.semanticscholar.org/paper/22960352fb5290127522b530fc22ea9a30f3cc1c",
+        "eprint_id": "2026/1079",
+        "role": "Derivative Work",
+        "category": "General / Applications",
+        "improves": null,
+        "security": null,
+        "assumptions": null
+      },
+      "in_degree_subgraph": 0,
+      "citations": [
+        "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+      ],
+      "cited_by": []
+    }
+  },
+  "taxonomy": {
+    "Foundations": [
+      "6c1f83ea5123ce1f3eb048c4606692fa526f8bfa"
+    ],
+    "General / Applications": [
+      "b530876dc429ccc82d7b978f3dc0524a9615c6f8",
+      "0590b550af52f9e2cb2aef0b56d0f0542c1246bd",
+      "22960352fb5290127522b530fc22ea9a30f3cc1c",
+      "1d4dcc0f5b5420880b99965651bdfd7078c095c4",
+      "7da91b61fca4183116bfd089685dd1e3c776fee6"
+    ],
+    "Security Foundations": [
+      "40d28b2bedc898ea7e08a2deb9c3e873079d6ecf",
+      "20b2d2980fe42d8178d649b6cc2bbc991404c29d"
+    ],
+    "Efficiency": [
+      "45f515ad3498c77c3766e0456c94af65ae3d6586",
+      "e40e524d4db6d62d9594f0aec075f1611968f9fb"
+    ],
+    "Advanced Variants": [
+      "43b6f14e5dce6eaea69b2ea5e5070990031c18cf"
+    ]
+  }
+}
