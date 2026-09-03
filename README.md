@@ -127,11 +127,26 @@ MAX_REQUEST_BYTES=6291456
 
 ## 数据持久化
 
-Compose 使用命名卷 `crypto_explorer_data`，数据库位于容器内：
+Compose 默认把持久化数据直接映射到项目根目录的 `./data`，容器内仍然使用 `/app/data`：
 
 ```text
-/app/data/research.db
+宿主机：./data/research.db
+容器内：/app/data/research.db
 ```
+
+可以通过 `CRYPTO_EXPLORER_DATA_DIR` 把宿主机数据目录改到其他位置。例如：
+
+```dotenv
+CRYPTO_EXPLORER_DATA_DIR=/srv/crypto-explorer/data
+```
+
+如果使用默认配置，并且项目部署在 `/root/crypto-explorer`，服务器备份脚本只需要备份：
+
+```text
+/root/crypto-explorer/data/
+```
+
+该目录包含 SQLite 主数据库以及 SQLite 运行时可能出现的 `-wal` / `-shm` 文件。代码已经保存在 GitHub，`node_modules`、`.next`、Docker 镜像、日志和概念谱系缓存均不需要单独作为代码备份对象。
 
 数据库当前用于保存：
 
